@@ -15,6 +15,7 @@ var redactPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`gh[opsu]_[A-Za-z0-9]{16,}`),
 	regexp.MustCompile(`sk-[A-Za-z0-9_-]{16,}`),
 	regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
+	regexp.MustCompile(`\b[A-Za-z]{2,8}_(?:live|test)_[A-Za-z0-9]{16,}\b`),
 	regexp.MustCompile(`(?i)(password\s*[=:]\s*)(\S+)`),
 	regexp.MustCompile(`(?i)(bearer\s+)([A-Za-z0-9._-]{12,})`),
 	regexp.MustCompile(`\b[A-Za-z0-9+/]{40,}={0,2}\b`),
