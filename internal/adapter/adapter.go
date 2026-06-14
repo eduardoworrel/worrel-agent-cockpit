@@ -91,6 +91,19 @@ type TranscriptEvent struct {
 	CreatedAt int64 // unix ms
 }
 
+// ModelLister é uma capacidade OPCIONAL: adaptadores que conseguem enumerar os
+// modelos disponíveis para a subscription/login ativo do usuário a implementam.
+// Não faz parte da interface Adapter obrigatória — o consumidor (httpapi) detecta
+// via type assertion (a, ok := adapter.(ModelLister)). Quando o CLI expõe um
+// comando real de listagem, ListModels deve preferi-lo (reflete a subscription);
+// só cai em lista curada quando o CLI não oferece o comando. Se o CLI não estiver
+// instalado, deve degradar retornando ([]string{}, erro).
+type ModelLister interface {
+	// ListModels devolve os ids de modelo disponíveis (formato depende do CLI,
+	// ex.: opencode usa "provider/model"; claude-code usa o id direto).
+	ListModels(ctx context.Context) ([]string, error)
+}
+
 // Adapter é a interface implementada por cada CLI suportado.
 type Adapter interface {
 	ID() string
