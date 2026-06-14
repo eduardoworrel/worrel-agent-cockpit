@@ -145,6 +145,7 @@ export default function RetroWizard() {
               <option value="opencode">opencode</option>
               <option value="gemini">gemini</option>
               <option value="codex">codex</option>
+              <option value="pidev">pi</option>
             </select>
           </div>
           <div>

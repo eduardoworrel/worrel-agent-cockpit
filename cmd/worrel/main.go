@@ -108,7 +108,7 @@ func main() {
 	// Adapters headless por ID (todos os que suportam RunHeadless): reusado para
 	// (a) escolher o adapter das análises pelo setting e (b) override por run na
 	// análise retroativa. pidev fica de fora enquanto RunHeadless não é suportado.
-	retroHeadless := map[string]distill.Headless{cc.ID(): cc, oc.ID(): oc, gem.ID(): gem, cx.ID(): cx}
+	retroHeadless := map[string]distill.Headless{cc.ID(): cc, oc.ID(): oc, gem.ID(): gem, cx.ID(): cx, pd.ID(): pd}
 	// Adaptador headless das análises respeita o setting (spec §10): default
 	// claude-code; outro provider quando configurado (evita gastar a quota do Claude).
 	var headless distill.Headless = cc
@@ -121,7 +121,7 @@ func main() {
 	importers := []struct {
 		name string
 		obs  distill.Observer
-	}{{"claude-code", cc}, {"opencode", oc}, {"gemini", gem}, {"codex", cx}}
+	}{{"claude-code", cc}, {"opencode", oc}, {"gemini", gem}, {"codex", cx}, {"pidev", pd}}
 	runImport := func() {
 		for _, im := range importers {
 			if n, err := imp.Import(im.obs); err != nil {
@@ -165,7 +165,7 @@ func main() {
 	// retroHeadless (definido acima) mapeia provider→headless p/ override por run
 	// (seletor na tela de análise retroativa). Observadores = adapters que leem
 	// histórico (claude-code, opencode, gemini, codex).
-	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc, gem, cx}, retroHeadless)
+	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc, gem, cx, pd}, retroHeadless)
 
 	srv := httpapi.New(httpapi.Deps{
 		Store:     st,

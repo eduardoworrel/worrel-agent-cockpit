@@ -83,6 +83,7 @@ export default function Settings() {
           <option value="opencode">opencode</option>
           <option value="gemini">gemini</option>
           <option value="codex">codex</option>
+          <option value="pidev">pi</option>
         </select>
 
         <label htmlFor="set-health-rate" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('settings.healthMinRate')}</label>
