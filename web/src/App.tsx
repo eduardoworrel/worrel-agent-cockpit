@@ -9,6 +9,8 @@ import Suggestions from './pages/Suggestions';
 import Settings from './pages/Settings';
 import Terminal from './pages/Terminal';
 import Retro from './pages/Retro';
+import Chat from './pages/Chat';
+import Pipelines from './pages/Pipelines';
 import Sessions from './pages/Sessions';
 import SecretApprovalModal from './components/SecretApprovalModal';
 import { FanMark } from './components/Fan';
@@ -64,6 +66,8 @@ function AppInner() {
           </NavLink>
           <NavLink to="/sessions">{t('sessions.hub')}</NavLink>
           <NavLink to="/retro">{t('nav.retro')}</NavLink>
+          <NavLink to="/chat">{t('nav.chat')}</NavLink>
+          <NavLink to="/pipelines">{t('nav.pipelines')}</NavLink>
           <NavLink to="/settings">{t('nav.settings')}</NavLink>
         </nav>
         <div style={{ padding: '0.75rem 1rem', marginTop: 'auto' }}>
@@ -87,6 +91,8 @@ function AppInner() {
             <Route path="/sessions/:id" element={<Terminal />} />
             <Route path="/suggestions" element={<Suggestions />} />
             <Route path="/retro" element={<Retro />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/pipelines" element={<Pipelines />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

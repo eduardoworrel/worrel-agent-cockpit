@@ -21,7 +21,7 @@ func pipelineTestServer(t *testing.T) (*httptest.Server, *store.Store) {
 	t.Cleanup(func() { s.Close() })
 	m := mirror.New(t.TempDir())
 	srv := New(Deps{Store: s, Mirror: m, Bus: bus.New(), Applier: apply.New(s, m, bus.New())})
-	srv.routesPipelines()
+	// routes() (via Handler) já registra routesPipelines(); não registrar de novo.
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return ts, s

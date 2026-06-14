@@ -20,6 +20,7 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/pidev"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/chat"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/handoff"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/httpapi"
@@ -167,6 +168,10 @@ func main() {
 	// histórico (claude-code, opencode, gemini, codex).
 	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc, gem, cx, pd}, retroHeadless)
 
+	// Chat de destilação: reusa o mapa de headless por provider e o adapter do
+	// boot como fallback; gera sugestões (origin=chat) sobre as sessões.
+	chatSvc := chat.NewService(st, retroHeadless, headless, b)
+
 	srv := httpapi.New(httpapi.Deps{
 		Store:     st,
 		Mirror:    mir,
@@ -182,6 +187,7 @@ func main() {
 		Handoff:   handoffGen,
 		Spawner:   spawner,
 		Retro:     retroSvc,
+		Chat:      chatSvc,
 	})
 
 	url := fmt.Sprintf("http://%s", ln.Addr().String())

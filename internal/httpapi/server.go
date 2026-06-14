@@ -7,6 +7,7 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/chat"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/retro"
@@ -31,6 +32,7 @@ type Deps struct {
 	Handoff   SummaryGeneratorIface // optional; nil = handoff indisponível
 	Spawner   Spawner               // optional; nil = handoff indisponível
 	Retro     *retro.Service        // fase 8: análise retroativa; nil = indisponível
+	Chat      *chat.Service         // chat de destilação; nil = chat indisponível
 }
 
 type Server struct {
@@ -65,6 +67,8 @@ func (s *Server) routes() {
 	s.routesSweep()
 	s.routesHandoff()
 	s.routesRetro()
+	s.routesPipelines()
+	s.routesChat()
 	s.routesWS()
 	s.routesStatic()
 }
