@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
@@ -73,13 +74,34 @@ func (a *Applier) Accept(suggestionID string) error {
 	}
 	switch sg.Type {
 	case "create_project":
-		proj, err := a.store.CreateProject(p.Name, p.Description)
+		// O nome vem em p.Name; candidatos de chat/destilação costumam pôr o nome
+		// no título da sugestão (p.Name vazio) — daí o fallback p/ sg.Title, senão
+		// o projeto nasce SEM TÍTULO (slug "projeto").
+		name := strings.TrimSpace(p.Name)
+		if name == "" {
+			name = strings.TrimSpace(sg.Title)
+		}
+		proj, err := a.store.CreateProject(name, p.Description)
 		if err != nil {
 			return err
 		}
 		for _, d := range p.Dirs {
 			if err := a.store.AddProjectDir(proj.ID, d); err != nil {
 				return err
+			}
+		}
+		// Semeia a memória do projeto com a descrição/conteúdo proposto, para que
+		// uma sessão nova já tenha CONTEXTO (stack, decisões) no primer — senão o
+		// agente abre num workspace vazio sem saber do que se trata.
+		seed := strings.TrimSpace(p.Description)
+		if seed == "" {
+			seed = strings.TrimSpace(p.Content)
+		}
+		if seed != "" {
+			if _, err := a.store.SaveMemory(proj.ID, seed, "criação: "+name); err == nil {
+				if err := a.mirror.WriteMemory(proj.Slug, seed); err != nil {
+					log.Printf("mirror: %v", err)
+				}
 			}
 		}
 	case "add_memory", "add_correction":
