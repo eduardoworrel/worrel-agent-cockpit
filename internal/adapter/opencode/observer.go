@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/metasession"
 	_ "modernc.org/sqlite"
 )
 
@@ -72,12 +73,44 @@ func (a *Adapter) DiscoverSessions(since time.Time) ([]adapter.ExternalSession, 
 		if err := rows.Scan(&id, &dir, &title, &created, &updated); err != nil {
 			return nil, err
 		}
+		// Descarta meta-sessões do próprio worrel já na descoberta (mesmo
+		// conjunto que o importador), inspecionando o 1º texto de usuário.
+		if metasession.IsWorrelMeta(a.firstUserText(db, id)) {
+			continue
+		}
 		out = append(out, adapter.ExternalSession{
 			Adapter: "opencode", ExternalRef: id, Dir: dir, Title: title,
 			StartedAt: time.UnixMilli(created), UpdatedAt: time.UnixMilli(updated),
 		})
 	}
 	return out, rows.Err()
+}
+
+// firstUserText devolve o texto concatenado da primeira mensagem de papel "user"
+// da sessão — o suficiente para detectar a assinatura headless do worrel.
+func (a *Adapter) firstUserText(db *sql.DB, sessionID string) string {
+	rows, err := db.Query(`SELECT id, data FROM message WHERE session_id=? ORDER BY time_created, id`, sessionID)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var mid, data string
+		if rows.Scan(&mid, &data) != nil {
+			continue
+		}
+		var m ocMessage
+		if json.Unmarshal([]byte(data), &m) != nil {
+			continue
+		}
+		if m.Role != "user" {
+			continue
+		}
+		if text := a.joinParts(db, mid); strings.TrimSpace(text) != "" {
+			return text
+		}
+	}
+	return ""
 }
 
 type ocMessage struct {

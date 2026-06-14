@@ -95,6 +95,29 @@ export interface ProjectGroup {
   groups: TypeGroup[];
 }
 
+// listAdapterModels busca os modelos disponíveis para um provider.
+// Endpoint em construção por outro agente: GET /api/adapters/{provider}/models.
+// Em 404/erro/resposta inesperada, retorna [] para a UI degradar p/ texto livre.
+export async function listAdapterModels(provider: string): Promise<string[]> {
+  if (!provider) return [];
+  try {
+    const res = await fetch(`${BASE}/adapters/${encodeURIComponent(provider)}/models`, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // Aceita { models: string[] } ou string[] ou [{id|name}].
+    const arr = Array.isArray(data) ? data : Array.isArray(data?.models) ? data.models : [];
+    return arr
+      .map((m: unknown) =>
+        typeof m === 'string' ? m : (m as { id?: string; name?: string })?.id ?? (m as { name?: string })?.name ?? '',
+      )
+      .filter((s: string) => !!s);
+  } catch {
+    return [];
+  }
+}
+
 export function inventory(windowDays = 0): Promise<InventoryReport> {
   return req('/retro/inventory', {
     method: 'POST',

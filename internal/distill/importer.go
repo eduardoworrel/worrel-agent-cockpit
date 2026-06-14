@@ -2,44 +2,13 @@ package distill
 
 import (
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/metasession"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
-
-// Assinaturas dos prompts headless do PRÓPRIO worrel (destilador e clusterizador).
-// Sessões cujo primeiro prompt de usuário começa por uma destas são chamadas
-// internas do app e NÃO devem ser re-importadas como trabalho do usuário —
-// caso contrário o worrel "come o próprio rabo" (gera skills sobre o próprio prompt).
-// Mantidas em sincronia com os literais de internal/distill/prompt.go e
-// internal/retro/cluster.go (que NÃO devem ser editados aqui).
-const (
-	metaSigDistiller = "Você é um destilador de conhecimento."
-	metaSigClusterer = "Você organiza um histórico de sessões de codificação em projetos."
-)
-
-// metaHeadWindow limita a busca da assinatura ao INÍCIO do primeiro evento:
-// curto o bastante para não pegar conversas reais que só citam o texto mais
-// adiante, largo o bastante para o preâmbulo <local-command-caveat> (~230 chars)
-// que o Claude Code injeta antes do prompt headless.
-const metaHeadWindow = 1000
-
-// isWorrelMetaSession reporta se o primeiro texto de usuário da sessão é uma
-// invocação headless do próprio worrel. Robusto a dois embrulhos observados:
-// OpenCode persiste o prompt entre aspas (`"Você é um destilador...`) e o Claude
-// Code prefixa um bloco <local-command-caveat>…</local-command-caveat>. Por isso
-// procuramos a assinatura numa janela curta do início (não prefixo exato, nem o
-// diálogo todo — que descartaria conversas reais que apenas citam o texto).
-func isWorrelMetaSession(firstUserText string) bool {
-	head := firstUserText
-	if len(head) > metaHeadWindow {
-		head = head[:metaHeadWindow]
-	}
-	return strings.Contains(head, metaSigDistiller) || strings.Contains(head, metaSigClusterer)
-}
 
 // firstUserText devolve o conteúdo do primeiro evento de papel "user".
 func firstUserText(evs []adapter.TranscriptEvent) string {
@@ -81,7 +50,9 @@ func (imp *Importer) Import(obs Observer) (int, error) {
 		evs, rtErr := obs.ReadTranscript(adapter.SessionRef{
 			Adapter: es.Adapter, ExternalRef: es.ExternalRef, Path: es.Path,
 		})
-		if rtErr == nil && isWorrelMetaSession(firstUserText(evs)) {
+		// Defesa idempotente: a descoberta já filtra meta-sessões, mas mantemos
+		// a checagem aqui caso o observador não tenha como inspecionar o 1º prompt.
+		if rtErr == nil && metasession.IsWorrelMeta(firstUserText(evs)) {
 			// meta-sessão do worrel: não cria store.Session.
 			continue
 		}
