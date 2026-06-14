@@ -1,188 +1,104 @@
-# Worrel Agent Cockpit
+# worrel — agent cockpit
 
-> Camada de memória, organização e destilação de conhecimento sobre CLIs de codificação agêntica — roda inteiramente na sua máquina, usa só a sua assinatura.
+> Camada de memória para CLIs de codificação agêntica. Observa suas sessões (Claude Code, OpenCode, Gemini, Codex, Pi) e destila **Projetos**, **Memórias** e **Skills** reutilizáveis — 100% local, sem telemetria, usando só a sua assinatura.
 
-O Worrel é uma aplicação web local que observa e organiza suas sessões de trabalho com CLIs agênticos (Claude Code, OpenCode e outros). Ele extrai padrões, decisões e correções dessas sessões e os transforma em artefatos persistentes — **Projetos**, **Memórias** e **Skills** — que podem ser injetados em novas sessões de qualquer CLI suportado. Tudo fica em banco local (SQLite); nenhum dado sai da sua máquina e nenhuma telemetria é enviada. O app não tem chave de API própria: toda inteligência é exercida via subscription que você já possui nos CLIs.
-
-## Rodando
-
-A forma mais rápida (sem clonar nada):
-
-```bash
-npx worrel@latest
-```
-
-Baixa o binário da sua plataforma, sobe o cockpit em `localhost:7717` e abre o
-navegador. Sempre na última versão. Flags úteis:
-
-- `npx worrel --no-open` — não abrir o navegador.
-- `npx worrel --port 8080` — escolher a porta (cai na próxima livre se ocupada).
-- `npx worrel --version` — versão instalada.
-
-Plataformas: macOS (arm64/x64) e Linux (x64/arm64). Windows ainda não — em breve.
-
-Para desenvolvimento, a partir do código:
+![license](https://img.shields.io/badge/license-MIT-blue)
+![local-first](https://img.shields.io/badge/local--first-no%20telemetry-2ea44f)
+![platforms](https://img.shields.io/badge/macOS%20%C2%B7%20Linux-arm64%20%7C%20x64-555)
+![made with](https://img.shields.io/badge/Go%20%2B%20React-single%20binary-orange)
 
 ```bash
-make build && ./bin/worrel
+npx worrel@latest          # baixa o binário, sobe em localhost:7717 e abre o navegador
 ```
+
+`--no-open` não abre o navegador · `--port 8080` escolhe a porta · `--version` mostra a versão.
+Plataformas: macOS (arm64/x64), Linux (x64/arm64). Windows em breve.
 
 ---
 
-## Principais recursos
+## O que é
 
-### Multi-CLI com adaptadores
+Você já trabalha com CLIs agênticos. O worrel **observa essas sessões** (iniciadas dentro ou fora do app), extrai padrões, decisões e correções, e os transforma em artefatos persistentes que podem ser **injetados de volta** em qualquer CLI suportado. Tudo em SQLite local; nenhum dado sai da máquina; o app não tem chave de API própria — a inteligência roda via subscription que você já possui.
 
-Suporte nativo a **Claude Code** e **OpenCode** via camada de adaptadores com interface comum. Cada adaptador declara como spawnar sessões interativas, injetar contexto, registrar o MCP server, ler transcripts existentes e executar modo headless. Novos CLIs podem ser adicionados sem alterar o núcleo; capacidades ausentes degradam graciosamente.
+## Recursos
 
-### Dois modos de operação simultâneos
+| Recurso | O que faz |
+|---|---|
+| **Multi-CLI** | Adaptadores p/ Claude Code, OpenCode, Gemini, Codex e Pi — interface comum; capacidades ausentes degradam graciosamente; novos CLIs sem mexer no núcleo |
+| **Wrapper + Observador** | Inicie sessões na UI com terminal embutido, **ou** deixe o app importar sessões que você rodou fora dele |
+| **Projetos = escopo** | Unidade de trabalho definida por você (não pasta); abrange N repos. Tem memória, skills, segredos e sessões próprios |
+| **MCP server local** | Qualquer agente acessa: listar projetos, carregar memória, buscar/rodar skills, reportar eventos, pedir segredos, resumir sessão p/ handoff |
+| **Fila de sugestões** | Nada é criado/alterado sem sua aprovação; fila revisável em tempo real que nunca bloqueia o trabalho |
+| **Cofre de segredos** | AES-256-GCM / Keychain. Modo **valor** (cifrado + auditoria por acesso) ou **receita** (só a instrução de obtenção). Injeção como env é opt-in |
+| **Handoff de contexto** | Perto do limite (~80%), oferece nova sessão com resumo estruturado (estado, decisões, próxima ação, becos sem saída) |
+| **Evolução de skills** | Skills versionadas com linhagem, métricas de saúde e reversão em 1 clique (ver abaixo) |
+| **Análise retroativa** | Destila todo o histórico já existente dos seus CLIs sob demanda (ver abaixo) |
+| **Retenção** | Transcripts brutos expiram (padrão 30d, configurável); artefatos destilados e auditoria são permanentes |
 
-- **Modo wrapper** — sessões iniciadas de dentro da UI com terminal embutido; memória do projeto e instruções de auto-relato são injetados no contexto inicial.
-- **Modo observador** — o app monitora os históricos de sessão dos CLIs instalados (`~/.claude/projects/` e equivalentes) e importa sessões iniciadas fora dele.
+<details>
+<summary><b>Evolução de skills</b> — tipos, linhagem e modo automático</summary>
 
-### MCP server local
+Toda criação/alteração de skill é classificada:
 
-O app expõe um MCP server que qualquer agente pode acessar, mesmo iniciado fora do app: listar projetos, carregar memória, buscar e executar skills, reportar eventos, solicitar segredos (`get_secret`), obter resumo de sessão para handoff.
+| Tipo | ID | Descrição |
+|---|---|---|
+| **Aprendizado** | `learned` | Padrão novo de sessão bem-sucedida → skill geração 1 |
+| **Correção** | `correction` | Reparo de skill existente → mesma skill, nova geração |
+| **Variante** | `variant` | Especialização/fusão → skill nova referenciando a(s) mãe(s) |
 
-### Projetos como escopo de trabalho
+Cada geração persiste `skill_id` estável, tipo, mães, diff legível, snapshot, evidência e autoria — **nada é sobrescrito**; reverter = reativar geração anterior.
 
-Um projeto é uma unidade de escopo definida pelo usuário, não uma pasta. Pode abranger múltiplos repositórios; pastas são apenas heurística de detecção. Cada projeto possui: memória própria (Markdown estruturado e versionado), skills, cofre de segredos e histórico de sessões.
+- **Saúde**: taxa de sucesso em janela móvel; ao degradar (ex.: ≥2 falhas seguidas) o motor propõe `correction` proativamente.
+- **Modo automático**: opt-in por skill (`manual` / `auto-correção` / `auto-total`), com aba dedicada, reversão em 1 clique e auto-rebaixamento p/ `manual` se a saúde cair.
+- **SKILL.md**: import/export no padrão aberto de Agent Skills (frontmatter YAML), consumível por Claude Code e outros.
+</details>
 
-### Auto-relato e varredura diferida
+<details>
+<summary><b>Análise retroativa</b> — "Analisar tudo" em 4 estágios</summary>
 
-O próprio agente se reporta via MCP durante a sessão (`report_task_completed`, `report_correction`, `propose_skill`). Periodicamente, uma sessão headless do CLI preferido do usuário varre transcripts acumulados, captura o que o auto-relato perdeu e consolida sugestões redundantes — tudo sem LLM enquanto possível (screening em fase 1) e consumindo sua quota só quando necessário (fase 2).
+| Estágio | LLM? | O que faz |
+|---|---|---|
+| 0 · Inventário | não | Contagens, períodos, estimativa de custo |
+| 1 · Escopo & orçamento | não | Escolhe CLIs/pastas/janela e teto de invocações; pausável/retomável/cancelável |
+| 2 · Clusterização | sim | Heurística por pasta + 1 chamada refina e propõe o mapa de projetos p/ aprovação |
+| 3 · Destilação | sim | Pipeline por projeto aprovado → sugestões tipadas em revisão em lote |
 
-### Fila de sugestões com aprovação humana
+Detecção de **segredos** em transcripts antigos (valores nunca em texto claro; rejeitados entram em supressão por hash) e **idempotência** (rodar 2× no mesmo período não duplica).
+</details>
 
-Toda sugestão (criar projeto, adicionar à memória, criar skill, atualizar skill) aparece em fila revisável em tempo real. Nenhum artefato é criado ou alterado sem aprovação do usuário. A fila nunca bloqueia o trabalho; pode ser revisada ao final do dia ou em lote.
+## Como funciona
 
-### Cofre de segredos (AES-256-GCM / Keychain)
+Binário Go único com UI React embutida; SQLite local; zero dependência de rede em runtime. O agente se auto-reporta via MCP durante a sessão; periodicamente uma varredura diferida (screening local sem LLM → confirmação headless só quando necessário) captura o que passou e consolida redundâncias.
 
-Dois modos por segredo:
+## Desenvolvimento
 
-- **Valor** — armazenado criptografado localmente (senha mestra e/ou keychain do SO). Todo acesso via `get_secret` gera registro de auditoria. Política configurável por segredo: liberar sempre / aprovar por sessão / aprovar a cada acesso.
-- **Receita** — o app guarda apenas a *instrução de obtenção* ("rode `op read …`", "está em `.env.local`") sem custodiar o valor.
-
-Injeção como variáveis de ambiente no spawn do CLI é opcional, desabilitada por padrão e exige confirmação explícita.
-
-### Handoff de contexto (~80%)
-
-Quando uma sessão wrapper se aproxima do limite de contexto, o app oferece iniciar nova sessão com resumo de handoff estruturado: estado atual, decisões tomadas, próxima ação, caminhos que falharam, arquivos relevantes. A cadeia de sessões encadeadas fica visível na UI.
-
-### Motor de evolução de skills
-
-Skills são entidades versionadas com linhagem, métricas e ciclo de vida. Toda criação ou alteração é classificada em um dos três tipos:
-
-| Tipo | Identificador | Descrição |
-|------|--------------|-----------|
-| **Aprendizado** | `learned` | Padrão novo extraído de sessão bem-sucedida; cria skill geração 1 |
-| **Correção** | `correction` | Reparo de skill existente (passo desatualizado, API mudou, falha); mesma skill, nova geração |
-| **Variante** | `variant` | Especialização ou fusão; cria skill nova com referência à(s) mãe(s) |
-
-Cada geração persiste: `skill_id` estável, tipo, ids das mães, diff legível, snapshot completo, resumo, evidência (trecho do transcript), autoria e timestamp. Reverter = reativar geração anterior com um clique; nenhuma geração é sobrescrita.
-
-**Métricas e saúde** — taxa de sucesso em janela móvel, tendência, usos recentes. Ao cruzar limiares de degradação (ex.: ≥2 falhas consecutivas), o motor gera proativamente uma sugestão `skill.correction` com diagnóstico.
-
-**Modo automático** — opt-in por skill (`manual` / `auto-correção` / `auto-total`). Toda aplicação automática fica em aba "Aplicadas automaticamente" com reverter em um clique; degradação de saúde pós-auto rebaixa a política para `manual` automaticamente.
-
-**Import/export SKILL.md** — compatibilidade com o padrão aberto de Agent Skills (diretório `SKILL.md` com frontmatter YAML), consumível pelo Claude Code e outros CLIs.
-
-### Análise retroativa ("Analisar tudo")
-
-Fluxo sob demanda que elimina o cold start: varre todo o histórico existente dos CLIs detectados, propõe projetos a partir do acervo e roda o pipeline completo de destilação sobre o passado.
-
-- **Estágio 0 — Inventário** (local, sem LLM): contagens, períodos cobertos, estimativa de custo.
-- **Estágio 1 — Escopo e orçamento**: o usuário escolhe CLIs, pastas, janela de tempo e máximo de invocações headless; execução é pausável, retomável e cancelável.
-- **Estágio 2 — Clusterização de projetos**: heurísticas locais + análise headless refinam grupos e propõem mapa de projetos para aprovação.
-- **Estágio 3 — Destilação retroativa**: pipeline v1+v2 roda por projeto aprovado, gerando sugestões tipadas em visão de revisão em lote separada da fila incremental.
-- **Segredos no histórico**: detector de credenciais nos transcripts antigos gera sugestões de cofre; valores nunca aparecem em texto claro na UI; rejeitados entram em lista de supressão por hash.
-- **Idempotência**: rodar duas vezes no mesmo período não duplica sugestões nem projetos.
-
-### Retenção de dados
-
-Transcripts brutos são descartados após X dias (padrão: 30, configurável). Artefatos destilados (memórias, skills, correções, logs de auditoria de segredos) são permanentes. Evidências de sugestões pendentes são preservadas mesmo após a expiração do transcript bruto.
-
----
-
-## Como rodar
-
-**Pré-requisitos**: Go ≥ 1.22, Node.js ≥ 20.
+**Pré-requisitos:** Go ≥ 1.22, Node.js ≥ 20.
 
 ```bash
-# 1. Build da UI React + binário Go
-make build
-
-# 2. Iniciar o servidor
-./bin/worrel
+make build                       # UI React + binário Go
+./bin/worrel                     # http://127.0.0.1:7717
+WORREL_MASTER_PASSWORD=… ./bin/worrel   # habilita o cofre em modo valor
+make run                         # build + run     ·     go test ./...
 ```
 
-O app fica disponível em **http://127.0.0.1:7717**.
+### Arquitetura (`internal/`)
 
-Para usar o cofre de segredos em modo valor, defina a senha mestra antes de iniciar:
+| Pacote | Responsabilidade | Pacote | Responsabilidade |
+|---|---|---|---|
+| `adapter/` | Adaptadores multi-CLI | `vault/` | Cofre de segredos |
+| `httpapi/` | API REST + assets da UI | `handoff/` | Handoff entre sessões |
+| `mcpserver/` | MCP server local | `retro/` | Análise retroativa |
+| `store/` | Banco SQLite | `wrapper/` | Spawn de CLI + terminal |
+| `distill/` | Varredura e destilação | `workspace/` | Projetos e workspace |
+| `skillpkg/` | Evolução de skills | `retention/` | Retenção de transcripts |
+| `apply/` | Aplicação de sugestões | `bus/` · `mirror/` | Eventos · mirror de transcripts |
 
-```bash
-WORREL_MASTER_PASSWORD=<senha> ./bin/worrel
-```
-
-Para desenvolvimento com live-reload da UI:
-
-```bash
-make web   # build da UI
-make run   # build completo + execução
-go test ./...  # testes
-```
-
----
-
-## Arquitetura
-
-Binário Go único com UI React embutida (assets copiados para `internal/httpapi/dist` no build). Banco de dados SQLite local; sem dependências de rede externas em runtime.
-
-Pacotes principais em `internal/`:
-
-| Pacote | Responsabilidade |
-|--------|-----------------|
-| `adapter/` | Camada de adaptadores multi-CLI (Claude Code, OpenCode) |
-| `httpapi/` | API REST + servidor de assets da UI |
-| `mcpserver/` | MCP server local |
-| `store/` | Acesso ao banco SQLite |
-| `distill/` | Motor de varredura e destilação |
-| `skillpkg/` | Motor de evolução de skills (linhagem, métricas, import/export) |
-| `vault/` | Cofre de segredos (criptografia, auditoria, políticas) |
-| `handoff/` | Resumo e handoff de contexto entre sessões |
-| `retro/` | Análise retroativa do acervo |
-| `wrapper/` | Modo wrapper (spawn de CLI com terminal embutido) |
-| `workspace/` | Gestão de projetos e workspace |
-| `retention/` | Política de retenção de transcripts |
-| `bus/` | Barramento de eventos interno |
-| `mirror/` | Mirror de transcripts em arquivos |
-| `apply/` | Aplicação de sugestões aprovadas |
-
-O ponto de entrada é `cmd/worrel/`.
-
----
+Ponto de entrada: `cmd/worrel/`.
 
 ## Licença
 
-MIT — intenção declarada; consulte o arquivo `LICENSE` na raiz do repositório.
+MIT — ver [`LICENSE`](LICENSE).
 
----
+## Créditos
 
-## Créditos — Motor de Evolução de Skills
-
-O motor de evolução de skills deste projeto foi **inspirado em conceitos** do projeto [OpenSpace](https://github.com/HKUDS/OpenSpace) (HKUDS, licença MIT).
-
-**Não há uso de código, runtime ou nuvem do OpenSpace.** A implementação aqui é inteiramente independente.
-
-Conceitos inspirados no OpenSpace:
-
-- **Taxonomia de evolução tipada** — lá chamada FIX / DERIVED / CAPTURED; aqui renomeada para **Correção / Variante / Aprendizado**, com semântica adaptada ao contexto de observação de sessões;
-- **Modelo de linhagem versionada** — diff legível e snapshot completo persistidos por geração, com evolução sempre aditiva e reversão não-destrutiva;
-- **Screening em duas fases** — fase 1 via regras e heurísticas locais (sem LLM); fase 2 de confirmação e redação via LLM (headless), acionada apenas para candidatos que passaram na fase 1;
-- **Monitoramento de métricas e saúde por skill** — taxa de sucesso em janela móvel, detecção de degradação, geração proativa de sugestão de correção sem ação do usuário.
-
-Diferenças centrais desta implementação:
-
-- **Aprendizado por observação das próprias sessões do usuário** — o motor extrai conhecimento dos transcripts e do auto-relato do agente de trabalho, não por delegação a um sistema externo;
-- **Aprovação humana como padrão global** — nenhuma skill ou memória é criada ou alterada sem aprovação do usuário; o modo automático é opt-in estritamente por skill, com salvaguardas de reversão e auto-suspensão por degradação de saúde;
-- **Inteligência exclusivamente via subscription dos CLIs do usuário** — Claude Code, OpenCode e outros CLIs que o usuário já possui autenticados; sem dependência de nuvem proprietária, chave de API do app ou execução de software de terceiros no pipeline.
+Motor de evolução de skills **inspirado em conceitos** do [OpenSpace](https://github.com/HKUDS/OpenSpace) (HKUDS, MIT) — taxonomia de evolução tipada, linhagem versionada, screening em duas fases e monitoramento de saúde. **Sem uso de código, runtime ou nuvem do OpenSpace**; implementação independente. Diferenças centrais: aprendizado por observação das próprias sessões do usuário, aprovação humana como padrão global, e inteligência exclusivamente via subscription dos CLIs.
