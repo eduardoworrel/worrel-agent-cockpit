@@ -60,6 +60,7 @@ func (s *Server) routes() {
 	s.routesLineage()
 	s.routesSkillPkg()
 	s.routesSessions()
+	s.routesModels()
 	s.routesSecrets()
 	s.routesSweep()
 	s.routesHandoff()
