@@ -294,8 +294,8 @@
         <li class="step reveal-up">
           <span class="step-n">01</span>
           <div>
-            <h3>Rode o binário</h3>
-            <p><code>make build &amp;&amp; ./bin/worrel</code> e abra <code>localhost</code>. Go com a UI React embutida: um binário único, sem dependências em runtime.</p>
+            <h3>Rode com um comando</h3>
+            <p><code>npx worrel@latest</code> baixa o binário da sua plataforma, sobe o cockpit em <code>localhost</code> e abre o navegador — sempre na última versão. Go com a UI React embutida: binário único, sem dependências em runtime.</p>
           </div>
         </li>
         <li class="step reveal-up">
@@ -371,11 +371,13 @@
 
     <div class="how-run reveal-up">
       <div class="run-label">// quickstart</div>
-<pre class="run-code"><span class="c-com"># clone, compile, rode — tudo local</span>
+<pre class="run-code"><span class="c-com"># sem clonar nada — sobe na última versão e abre o navegador</span>
+<span class="c-cmd">npx</span> worrel@latest
+<span class="c-com"># → http://localhost:7717</span>
+
+<span class="c-com"># ou, para desenvolvimento, a partir do código:</span>
 <span class="c-cmd">git</span> clone https://github.com/eduardoworrel/worrel-agent-cockpit
-<span class="c-cmd">cd</span> worrel-agent-cockpit
-<span class="c-cmd">make</span> build <span class="c-op">&amp;&amp;</span> ./bin/worrel
-<span class="c-com"># → abra http://localhost no navegador</span></pre>
+<span class="c-cmd">make</span> build <span class="c-op">&amp;&amp;</span> ./bin/worrel</pre>
     </div>
   </section>
 
