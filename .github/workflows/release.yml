@@ -1,0 +1,67 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+      - name: Build web UI
+        run: make web
+      - name: Cross-compile binaries
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p npm/platforms/darwin-arm64/bin npm/platforms/darwin-x64/bin \
+                   npm/platforms/linux-x64/bin npm/platforms/linux-arm64/bin
+          build() { GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -ldflags "-X main.version=$VERSION" -o "$3" ./cmd/worrel; }
+          build darwin arm64 npm/platforms/darwin-arm64/bin/worrel
+          build darwin amd64 npm/platforms/darwin-x64/bin/worrel
+          build linux  amd64 npm/platforms/linux-x64/bin/worrel
+          build linux  arm64 npm/platforms/linux-arm64/bin/worrel
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: npm/platforms/*/bin/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: npm/platforms
+      - name: Stamp version
+        run: node scripts/stamp-version.mjs "${GITHUB_REF_NAME#v}"
+      - name: Publish platform packages
+        run: |
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            chmod +x "npm/platforms/$p/bin/"* || true
+            (cd "npm/platforms/$p" && npm publish --access public)
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish main package
+        run: (cd npm/worrel && npm publish --access public)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: npm/platforms/*/bin/*

@@ -1,0 +1,153 @@
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { killSession, postHandoff } from '../api';
+import { useEvents } from '../useEvents';
+import '@xterm/xterm/css/xterm.css';
+
+export default function Terminal() {
+  const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const ref = useRef<HTMLDivElement>(null);
+
+  const [contextUsed, setContextUsed] = useState(0);
+  const [contextLimit, setContextLimit] = useState(0);
+  const [showHandoffBanner, setShowHandoffBanner] = useState(false);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+
+  useEvents((ev) => {
+    if (!id) return;
+    if (ev.type === 'session.context') {
+      const p = ev.payload as { session_id: string; used: number; limit: number };
+      if (p.session_id === id) {
+        setContextUsed(p.used);
+        setContextLimit(p.limit);
+      }
+    }
+    if (ev.type === 'session.context_high') {
+      const p = ev.payload as { session_id: string };
+      if (p.session_id === id) {
+        setShowHandoffBanner(true);
+      }
+    }
+  });
+
+  const handleHandoff = async () => {
+    if (!id) return;
+    setHandoffBusy(true);
+    try {
+      const result = await postHandoff(id);
+      navigate(`/sessions/${result.new_id}`);
+    } catch {
+      setHandoffBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!ref.current || !id) return;
+    const term = new XTerm({
+      fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
+      fontSize: 13,
+      cursorBlink: true,
+      theme: { background: '#191510' },
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(ref.current);
+    fit.fit();
+
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/api/sessions/${id}/term`);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onmessage = (e) => {
+      if (typeof e.data === 'string') term.write(e.data);
+      else term.write(new Uint8Array(e.data));
+    };
+
+    let disposed = false;
+    const note = (msg: string) => {
+      if (!disposed) term.write(`\r\n\x1b[2m[worrel] ${msg}\x1b[0m\r\n`);
+    };
+    ws.onclose = () => note(t('terminal.connectionClosed'));
+    ws.onerror = () => note(t('terminal.connectionError'));
+
+    const sendResize = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      }
+    };
+
+    ws.onopen = () => {
+      sendResize();
+      term.focus();
+    };
+
+    const dataDisp = term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'stdin', data }));
+      }
+    });
+
+    const onWinResize = () => { fit.fit(); sendResize(); };
+    window.addEventListener('resize', onWinResize);
+
+    return () => {
+      disposed = true;
+      window.removeEventListener('resize', onWinResize);
+      dataDisp.dispose();
+      ws.close();
+      term.dispose();
+    };
+  }, [id]);
+
+  const contextPct = contextLimit > 0 ? Math.round(contextUsed * 100 / contextLimit) : 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{
+        padding: '12px 20px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+        background: 'var(--surface)', borderBottom: '1px solid var(--line)',
+      }}>
+        <strong style={{ color: 'var(--ink)', fontFamily: 'var(--display)' }}>{t('terminal.title')}</strong>
+        <button className="btn btn-danger btn-sm" onClick={() => id && killSession(id)}>{t('terminal.kill')}</button>
+        {contextLimit > 0 && (
+          <span className="mono" style={{ fontSize: '0.78rem', color: 'var(--muted)', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {t('sessions.contextBar', { used: contextUsed, limit: contextLimit })}
+            <span style={{
+              display: 'inline-block', width: 72, height: 7,
+              background: 'var(--surface-warm)', border: '1px solid var(--line)', borderRadius: 'var(--r-pill)', overflow: 'hidden'
+            }}>
+              <span style={{
+                display: 'block', height: '100%',
+                width: `${contextPct}%`,
+                background: contextPct >= 80 ? 'var(--red)' : 'var(--sky)',
+              }} />
+            </span>
+            {contextPct}%
+          </span>
+        )}
+      </div>
+      {showHandoffBanner && (
+        <div style={{
+          padding: '10px 20px', background: 'var(--fill-amber)',
+          borderBottom: '1px solid var(--amber)',
+          display: 'flex', gap: 12, alignItems: 'center',
+        }}>
+          <span style={{ color: '#7a5800', fontWeight: 500 }}>{t('handoff.banner')}</span>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={handoffBusy}
+            onClick={handleHandoff}
+          >
+            {t('handoff.start')}
+          </button>
+        </div>
+      )}
+      <div ref={ref} style={{ flex: 1, background: '#191510', padding: 12 }} />
+    </div>
+  );
+}

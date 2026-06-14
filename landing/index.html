@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<!-- Marca que o JS está ativo ANTES do render: só então o reveal-on-scroll
+     pode ocultar conteúdo. Sem JS, tudo permanece visível (resiliência/SEO). -->
+<script>document.documentElement.classList.add('js');</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>worrel — agent cockpit · camada de memória local para CLIs agênticos</title>
+<meta name="description" content="worrel é um painel local-first que observa suas sessões de Claude Code, OpenCode e outros CLIs agênticos e destila Projetos, Memórias e Skills versionadas. 100% local, privado, sem telemetria." />
+<meta name="color-scheme" content="light" />
+<meta name="theme-color" content="#fbf8f1" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="worrel — agent cockpit" />
+<meta property="og:description" content="Camada de memória, organização e destilação de conhecimento sobre seus CLIs de codificação agêntica. Local-first, privado, multi-CLI." />
+
+<!-- Inter Tight (display), Inter (corpo), JetBrains Mono (código/terminal). -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23fbf8f1'/%3E%3Cg stroke-width='2.4' stroke-linecap='round'%3E%3Cline x1='6' y1='26' x2='8' y2='9' stroke='%23ee2e96'/%3E%3Cline x1='6' y1='26' x2='14' y2='9' stroke='%23ff6a1a'/%3E%3Cline x1='6' y1='26' x2='20' y2='11' stroke='%23ffc02e'/%3E%3Cline x1='6' y1='26' x2='25' y2='15' stroke='%232fa4ee'/%3E%3C/g%3E%3C/svg%3E" />
+</head>
+<body>
+
+<!-- atmosfera: grade blueprint + grão -->
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-glow" aria-hidden="true"></div>
+<div class="bg-grain" aria-hidden="true"></div>
+
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+<!-- ░░ NAV ░░ -->
+<header class="nav" id="topo">
+  <a class="brand" href="#topo" aria-label="worrel — início">
+    <svg class="brand-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+      <g stroke-width="2.6" stroke-linecap="round">
+        <line x1="6" y1="26" x2="8"  y2="9"  stroke="#ee2e96"/>
+        <line x1="6" y1="26" x2="14" y2="9"  stroke="#ff6a1a"/>
+        <line x1="6" y1="26" x2="20" y2="11" stroke="#ffc02e"/>
+        <line x1="6" y1="26" x2="25" y2="15" stroke="#2fa4ee"/>
+      </g>
+    </svg>
+    <span class="brand-name">worrel</span>
+    <span class="brand-sub">agent&nbsp;cockpit</span>
+  </a>
+  <nav class="nav-links" aria-label="Navegação principal">
+    <a href="#problema">O problema</a>
+    <a href="#features">Pilares</a>
+    <a href="#como">Como funciona</a>
+    <a href="#privacidade">Privacidade</a>
+  </nav>
+  <div class="nav-cta">
+    <a class="btn btn-ghost" href="https://github.com/eduardoworrel/worrel-agent-cockpit" rel="noopener">GitHub</a>
+    <a class="btn btn-solid" href="#como">Começar</a>
+  </div>
+</header>
+
+<main id="conteudo">
+
+  <!-- ░░ HERO ░░ -->
+  <section class="hero" aria-labelledby="hero-title">
+    <!-- assinatura: leque de gerações de skills, radiando atrás do título -->
+    <svg class="hero-fan" viewBox="0 0 600 360" aria-hidden="true" preserveAspectRatio="xMidYMax meet">
+      <g stroke-linecap="round" fill="none">
+        <path d="M300 348 L120 70"  stroke="#ee2e96" stroke-width="9"/>
+        <path d="M300 348 L188 44"  stroke="#ff6a1a" stroke-width="9"/>
+        <path d="M300 348 L300 28"  stroke="#ffc02e" stroke-width="9"/>
+        <path d="M300 348 L412 44"  stroke="#2fa4ee" stroke-width="9"/>
+        <path d="M300 348 L480 70"  stroke="#1f9d57" stroke-width="9"/>
+        <path d="M300 348 L70 150"  stroke="#ee2e96" stroke-width="7" opacity=".55"/>
+        <path d="M300 348 L530 150" stroke="#2fa4ee" stroke-width="7" opacity=".55"/>
+      </g>
+    </svg>
+    <div class="hero-copy">
+      <p class="eyebrow reveal"><span class="dot"></span> open-source · local-first · binário único</p>
+      <h1 id="hero-title" class="reveal d1">
+        Seus agentes <span class="accent">esquecem.</span><br />
+        O cockpit <span class="under">lembra por eles.</span>
+      </h1>
+      <p class="lede reveal d2">
+        worrel observa suas sessões de Claude&nbsp;Code, OpenCode e outros CLIs agênticos,
+        identifica o que foi feito, o que falhou e o que se repete — e destila tudo em
+        <strong>Projetos, Memórias e Skills</strong> versionadas, prontas para reinjetar
+        em qualquer sessão nova.
+      </p>
+      <div class="hero-actions reveal d3">
+        <a class="btn btn-solid btn-lg" href="https://github.com/eduardoworrel/worrel-agent-cockpit" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 016 0C17.3 4.9 18.3 5.2 18.3 5.2c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+          Ver no GitHub
+        </a>
+        <a class="btn btn-ghost btn-lg" href="#como">Como começar →</a>
+      </div>
+      <dl class="hero-stats reveal d4">
+        <div><dt>100%</dt><dd>local · zero nuvem</dd></div>
+        <div><dt>0</dt><dd>chaves de API próprias</dd></div>
+        <div><dt>n+</dt><dd>CLIs via adaptadores</dd></div>
+      </dl>
+    </div>
+
+    <!-- mockup do dashboard em CSS/SVG -->
+    <div class="hero-shot reveal d3" aria-hidden="false">
+      <!-- PLUG REAL SCREENSHOT AQUI: substitua o bloco .mock por <img src="assets/dashboard.png" alt="..."> -->
+      <img class="shot-fallback-img" alt="Painel do worrel listando escopos de trabalho por atividade recente, sugestões pendentes e sessões ativas"
+           src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
+           style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />
+      <figure class="mock mock-dash">
+        <div class="mock-bar">
+          <span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span>
+          <span class="mock-path">localhost:7717 · worrel</span>
+        </div>
+        <div class="mock-body">
+          <div class="mock-side">
+            <div class="ms-logo">⌁ worrel</div>
+            <div class="ms-item active">▸ Painel</div>
+            <div class="ms-item">Sugestões <span class="badge" id="m-badge">7</span></div>
+            <div class="ms-item">Sessões</div>
+            <div class="ms-item">Análise retroativa</div>
+            <div class="ms-item">Configurações</div>
+            <div class="ms-btn">+ Nova Sessão</div>
+          </div>
+          <div class="mock-main">
+            <div class="mm-head">
+              <span class="mm-title">Painel · escopos por atividade</span>
+              <span class="mm-live"><i></i> 2 sessões ativas</span>
+            </div>
+            <div class="proj-card">
+              <div class="pc-top"><b>Cobrança recorrente</b><span class="pc-ago">há 4&nbsp;min</span></div>
+              <div class="pc-sub">corrigiu migração de cobrança · skill <code>deploy-staging</code> usada 3×</div>
+              <div class="pc-tags"><span>memória 41</span><span id="m-skills">skills 6</span><span class="hot" id="m-hot">+2 sugestões</span></div>
+            </div>
+            <div class="proj-card">
+              <div class="pc-top"><b>Motor de evolução de skills</b><span class="pc-ago">há 1&nbsp;h</span></div>
+              <div class="pc-sub">refatorou linhagem de skills · handoff em 1 sessão</div>
+              <div class="pc-tags"><span>memória 28</span><span>skills 9</span></div>
+            </div>
+            <div class="proj-card dim">
+              <div class="pc-top"><b>Tooling de infraestrutura</b><span class="pc-ago">ontem</span></div>
+              <div class="pc-sub">3 sessões observadas · varredura pendente</div>
+              <div class="pc-tags"><span>memória 12</span><span>skills 2</span></div>
+            </div>
+          </div>
+        </div>
+      </figure>
+      <span class="shot-tag">painel</span>
+      <!-- cursor fantasma + toast: contam "o cockpit aprende" em ~5s -->
+      <div class="ghost-cursor" id="m-cursor" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 3l15 8.5-6.2 1.4L17 19l-2.6 1.2-3.2-6.3L7 18z" fill="#191510" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="mock-toast" id="m-toast" aria-hidden="true"><i></i> skill <b>deploy-staging</b> aprendida</div>
+    </div>
+  </section>
+
+  <!-- ░░ MARQUEE ░░ -->
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <span>Claude&nbsp;Code</span><span class="sep">/</span><span>OpenCode</span><span class="sep">/</span>
+      <span>MCP&nbsp;server&nbsp;embutido</span><span class="sep">/</span><span>SQLite&nbsp;local</span><span class="sep">/</span>
+      <span>AES-256-GCM</span><span class="sep">/</span><span>handoff&nbsp;de&nbsp;contexto</span><span class="sep">/</span>
+      <span>linhagem&nbsp;de&nbsp;skills</span><span class="sep">/</span><span>análise&nbsp;retroativa</span><span class="sep">/</span>
+      <span>Claude&nbsp;Code</span><span class="sep">/</span><span>OpenCode</span><span class="sep">/</span>
+      <span>MCP&nbsp;server&nbsp;embutido</span><span class="sep">/</span><span>SQLite&nbsp;local</span><span class="sep">/</span>
+      <span>AES-256-GCM</span><span class="sep">/</span><span>handoff&nbsp;de&nbsp;contexto</span><span class="sep">/</span>
+      <span>linhagem&nbsp;de&nbsp;skills</span><span class="sep">/</span><span>análise&nbsp;retroativa</span><span class="sep">/</span>
+    </div>
+  </div>
+
+  <!-- ░░ PROBLEMA → SOLUÇÃO ░░ -->
+  <section class="problem" id="problema" aria-labelledby="prob-title">
+    <div class="section-head reveal-up">
+      <span class="kicker">00 · o atrito</span>
+      <h2 id="prob-title">Todo dia o agente começa <em>do zero.</em></h2>
+    </div>
+    <div class="problem-grid">
+      <article class="prob-col reveal-up">
+        <h3>O cold-start invisível</h3>
+        <p>
+          Você fecha o terminal e o contexto evapora. Na próxima sessão, o agente
+          recomete os mesmos erros, refaz a mesma investigação, pergunta o mesmo
+          segredo. Cada nova janela é uma amnésia cara — em tokens e em paciência.
+        </p>
+        <ul class="prob-list">
+          <li>Correções aprendidas se perdem no histórico.</li>
+          <li>Padrões recorrentes nunca viram processo.</li>
+          <li>Contexto morre ao bater o limite da janela.</li>
+        </ul>
+      </article>
+      <div class="prob-arrow reveal-up" aria-hidden="true">
+        <svg viewBox="0 0 120 40" width="120" height="40"><path d="M2 20h104m0 0l-12-9m12 9l-12 9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <article class="prob-col solved reveal-up">
+        <h3>A camada que persiste</h3>
+        <p>
+          worrel fica entre você e os CLIs como memória de longo prazo. Observa,
+          destila e devolve o conhecimento já organizado — para que cada sessão
+          nova nasça sabendo o que a anterior aprendeu.
+        </p>
+        <ul class="prob-list ok">
+          <li>Memória de projeto injetada no contexto inicial.</li>
+          <li>Skills versionadas executam tarefas recorrentes.</li>
+          <li>Handoff estruturado quando o limite se aproxima.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <!-- ░░ FEATURES ░░ -->
+  <section class="features" id="features" aria-labelledby="feat-title">
+    <div class="section-head reveal-up">
+      <span class="kicker">01 · os pilares</span>
+      <h2 id="feat-title">Engenharia, não <em>mágica.</em></h2>
+      <p class="section-lede">Sete sistemas que transformam sessões efêmeras em conhecimento durável.</p>
+    </div>
+
+    <div class="feat-grid">
+      <article class="feat reveal-up">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+        </span>
+        <h3>Local-first &amp; privado</h3>
+        <p>Tudo roda na sua máquina. Storage em SQLite local, zero telemetria, zero nuvem. Sem chave de API própria — usa <strong>exclusivamente</strong> a assinatura que você já tem nos CLIs.</p>
+      </article>
+
+      <article class="feat reveal-up">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M6.5 8v4M17.5 8v8"/></svg>
+        </span>
+        <h3>Multi-CLI por adaptadores</h3>
+        <p>Camada de adaptadores com interface comum. A v1 entrega <strong>Claude&nbsp;Code</strong> e <strong>OpenCode</strong> completos; a arquitetura aceita novos CLIs sem tocar no núcleo.</p>
+      </article>
+
+      <article class="feat reveal-up">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+        </span>
+        <h3>MCP server embutido</h3>
+        <p>Qualquer agente — mesmo iniciado fora do app — lista projetos, carrega skills, reporta eventos e pede segredos via MCP. "Carregue a skill X do projeto Y" simplesmente funciona.</p>
+      </article>
+
+      <article class="feat reveal-up">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><path d="M4 12v5h5"/><path d="M12 7v5l3.5 2"/></svg>
+        </span>
+        <h3>Auto-relato + varredura</h3>
+        <p>O próprio agente se reporta no momento certo. Uma varredura em lote diferida destila o que passou, detecta padrões entre sessões e deduplica sugestões redundantes.</p>
+      </article>
+
+      <article class="feat reveal-up wide">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.2 7.4 15.6 11M8.2 16.6 15.6 13"/></svg>
+        </span>
+        <h3>Motor de evolução de skills <span class="tag-ver">v2</span></h3>
+        <p>Skills viram entidades versionadas com linhagem tipada — <strong>Aprendizado</strong>, <strong>Correção</strong>, <strong>Variante</strong> — métricas de saúde e evolução proativa <em>opt-in</em>. Aprovação humana continua sendo o padrão, sempre com diff e reversão por geração.</p>
+      </article>
+
+      <article class="feat reveal-up wide">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 5h18M3 12h18M3 19h18"/><circle cx="7" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="14" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="10" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <h3>Análise retroativa <span class="tag-ver">v3</span></h3>
+        <p>"Analisar tudo" varre todo o histórico já existente dos seus CLIs, propõe projetos e destila skills e memórias do passado — com <strong>controle estrito de orçamento</strong> de quota para você nunca ser surpreendido.</p>
+      </article>
+
+      <article class="feat reveal-up">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <h3>Cofre de segredos</h3>
+        <p>Credenciais com escopo de projeto. Modo <strong>valor</strong> (cifrado, AES-256-GCM / Keychain) ou <strong>receita</strong> (instrução, sem custódia). Auditoria de todo acesso e mascaramento por padrão.</p>
+      </article>
+
+      <article class="feat reveal-up">
+        <span class="feat-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v14H4z"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>
+        </span>
+        <h3>Handoff &amp; terminal embutido</h3>
+        <p>Perto de ~80% do limite, worrel gera um resumo estruturado e abre uma sessão encadeada. E inicia sessões dos CLIs de dentro da UI, já com a memória do projeto injetada.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ░░ COMO FUNCIONA ░░ -->
+  <section class="how" id="como" aria-labelledby="how-title">
+    <div class="section-head reveal-up">
+      <span class="kicker">02 · o loop</span>
+      <h2 id="how-title">Quatro passos. Um ciclo que <em>se fecha.</em></h2>
+    </div>
+
+    <div class="how-grid">
+      <ol class="steps">
+        <li class="step reveal-up">
+          <span class="step-n">01</span>
+          <div>
+            <h3>Rode o binário</h3>
+            <p><code>make build &amp;&amp; ./bin/worrel</code> e abra <code>localhost</code>. Go com a UI React embutida: um binário único, sem dependências em runtime.</p>
+          </div>
+        </li>
+        <li class="step reveal-up">
+          <span class="step-n">02</span>
+          <div>
+            <h3>Trabalhe normalmente</h3>
+            <p>Inicie sessões pela UI ou siga no seu terminal. worrel observa em ambos os modos via camada de adaptadores e MCP.</p>
+          </div>
+        </li>
+        <li class="step reveal-up">
+          <span class="step-n">03</span>
+          <div>
+            <h3>Revise as sugestões</h3>
+            <p>Auto-relato e varredura geram uma fila de sugestões com diff e evidência. Aceite, edite, rejeite ou adie — no seu ritmo.</p>
+          </div>
+        </li>
+        <li class="step reveal-up">
+          <span class="step-n">04</span>
+          <div>
+            <h3>Reinjete o conhecimento</h3>
+            <p>Skills e memórias aprovadas alimentam as próximas sessões de qualquer CLI. O ciclo recomeça — agora mais inteligente.</p>
+          </div>
+        </li>
+      </ol>
+
+      <!-- mockups: fila de sugestões + linhagem de skill -->
+      <div class="how-shots">
+        <!-- PLUG REAL SCREENSHOT AQUI: assets/suggestions.png -->
+        <figure class="mock mock-sugg reveal-up">
+          <div class="mock-bar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span class="mock-path">fila de sugestões</span></div>
+          <div class="sugg">
+            <div class="sg-row">
+              <span class="sg-type t-skill">skill.learned</span>
+              <span class="sg-proj">Cobrança recorrente</span>
+            </div>
+            <p class="sg-text">Criar skill <b>deploy-staging</b> — detectado 3× nas últimas sessões.</p>
+            <div class="sg-diff">
+              <span class="add">+ pré-requisito: token STAGING via cofre</span>
+              <span class="add">+ passo 4: aguardar health-check &lt; 30s</span>
+            </div>
+            <div class="sg-actions"><button class="sg-ok">aceitar</button><button class="sg-edit">editar</button><button class="sg-no">rejeitar</button></div>
+          </div>
+          <div class="sugg dim">
+            <div class="sg-row"><span class="sg-type t-mem">memory.correction</span><span class="sg-proj">k8s-tooling</span></div>
+            <p class="sg-text"><b>kubectl apply -f</b> falha sem namespace; usar <code>-n infra</code>.</p>
+          </div>
+        </figure>
+
+        <!-- PLUG REAL SCREENSHOT AQUI: assets/lineage.png -->
+        <figure class="mock mock-line reveal-up">
+          <div class="mock-bar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span class="mock-path">linhagem · deploy-staging</span></div>
+          <div class="lineage">
+            <!-- leque vivo: cada raio é uma geração real, colorida por tipo -->
+            <svg class="fan-line" viewBox="0 0 300 150" fill="none" aria-label="Leque de 3 gerações">
+              <g stroke-linecap="round">
+                <line class="fr" style="--d:0ms"   x1="150" y1="140" x2="84"  y2="34" stroke="#2fa4ee" stroke-width="3.5" opacity=".55"/>
+                <line class="fr" style="--d:70ms"  x1="150" y1="140" x2="150" y2="22" stroke="#ffc02e" stroke-width="3.5" opacity=".55"/>
+                <line class="fr" style="--d:140ms" x1="150" y1="140" x2="216" y2="34" stroke="#ee2e96" stroke-width="6"/>
+              </g>
+              <circle class="fr-dot" cx="216" cy="34" r="5.5" fill="#ee2e96"/>
+              <text class="fr-lbl" x="216" y="22" fill="#ee2e96" font-size="11" font-weight="700" text-anchor="middle" font-family="'Inter Tight',sans-serif">gen 3</text>
+            </svg>
+            <div class="ln-legend">
+              <span class="kind k-learn">gen 1 · Aprendizado</span>
+              <span class="kind k-var">gen 2 · Variante</span>
+              <span class="kind k-fix">gen 3 · Correção</span>
+            </div>
+            <div class="ln-foot"><span class="health"><i></i> saúde 96% · atual</span><span class="revert">↶ reverter geração</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+
+    <div class="how-run reveal-up">
+      <div class="run-label">// quickstart</div>
+<pre class="run-code"><span class="c-com"># clone, compile, rode — tudo local</span>
+<span class="c-cmd">git</span> clone https://github.com/eduardoworrel/worrel-agent-cockpit
+<span class="c-cmd">cd</span> worrel-agent-cockpit
+<span class="c-cmd">make</span> build <span class="c-op">&amp;&amp;</span> ./bin/worrel
+<span class="c-com"># → abra http://localhost no navegador</span></pre>
+    </div>
+  </section>
+
+  <!-- ░░ PRIVACIDADE ░░ -->
+  <section class="privacy" id="privacidade" aria-labelledby="priv-title">
+    <div class="priv-inner">
+      <div class="priv-copy reveal-up">
+        <span class="kicker light">03 · o diferencial</span>
+        <h2 id="priv-title">Sua máquina é o servidor.<br /><em>E o limite.</em></h2>
+        <p>
+          worrel foi desenhado para nunca pedir confiança que não precisa. Não há
+          backend remoto, não há conta, não há telemetria — nem a "anônima". O que
+          o agente aprende sobre o seu código permanece onde o seu código está.
+        </p>
+        <div class="priv-checks">
+          <div class="pcheck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Armazenamento 100% local em SQLite</div>
+          <div class="pcheck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Zero telemetria, zero analytics</div>
+          <div class="pcheck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Sem chave de API própria do app</div>
+          <div class="pcheck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Inteligência só via sua assinatura nos CLIs</div>
+          <div class="pcheck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Cofre cifrado com auditoria de acesso</div>
+          <div class="pcheck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Retenção configurável de transcripts brutos</div>
+        </div>
+      </div>
+      <aside class="priv-panel reveal-up" aria-label="Resumo de rede">
+        <div class="pp-title">// network.log</div>
+        <div class="pp-line"><span class="ok">●</span> bind 127.0.0.1:7717</div>
+        <div class="pp-line"><span class="ok">●</span> sqlite ~/.worrel/db</div>
+        <div class="pp-line"><span class="ok">●</span> mcp stdio :: ready</div>
+        <div class="pp-line muted">— outbound to app cloud …</div>
+        <div class="pp-line none">∅ nenhuma conexão</div>
+        <div class="pp-foot">tráfego de saída: <b>0&nbsp;bytes</b></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ░░ OPEN SOURCE / CRÉDITOS ░░ -->
+  <section class="oss" id="open-source" aria-labelledby="oss-title">
+    <div class="section-head reveal-up">
+      <span class="kicker">04 · open source</span>
+      <h2 id="oss-title">Construído <em>à vista de todos.</em></h2>
+    </div>
+    <div class="oss-grid">
+      <article class="oss-card reveal-up">
+        <h3>Stack honesta</h3>
+        <p>Go para o binário e a UI embutida, React para a interface. Rodar é compilar e abrir o localhost. Sem orquestração, sem contêineres obrigatórios, sem segredos de build.</p>
+        <a class="btn btn-ghost" href="https://github.com/eduardoworrel/worrel-agent-cockpit" rel="noopener">Ler o código →</a>
+      </article>
+      <article class="oss-card reveal-up">
+        <h3>Contribua</h3>
+        <p>Bugs, ideias, adaptadores para novos CLIs — PRs e issues são bem-vindos. Licença MIT. O cockpit cresce com quem o usa.</p>
+        <a class="btn btn-ghost" href="https://github.com/eduardoworrel/worrel-agent-cockpit/issues" rel="noopener">Abrir issue →</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- ░░ CTA FINAL ░░ -->
+  <section class="final" aria-labelledby="final-title">
+    <div class="final-inner reveal-up">
+      <h2 id="final-title">Pare de reensinar <em>a mesma coisa.</em></h2>
+      <p>Clone, compile e deixe o cockpit começar a lembrar por você.</p>
+      <div class="final-actions">
+        <a class="btn btn-solid btn-lg" href="https://github.com/eduardoworrel/worrel-agent-cockpit" rel="noopener">Ver no GitHub</a>
+        <a class="btn btn-ghost btn-lg" href="#como">Quickstart</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ░░ FOOTER ░░ -->
+<footer class="foot">
+  <div class="foot-brand">
+    <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><g stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="26" x2="8" y2="9" stroke="#ee2e96"/><line x1="6" y1="26" x2="14" y2="9" stroke="#ff6a1a"/><line x1="6" y1="26" x2="20" y2="11" stroke="#ffc02e"/><line x1="6" y1="26" x2="25" y2="15" stroke="#2fa4ee"/></g></svg>
+    <span><b>worrel</b> · agent cockpit</span>
+  </div>
+  <nav class="foot-links" aria-label="Rodapé">
+    <a href="#features">Pilares</a>
+    <a href="#como">Como funciona</a>
+    <a href="#privacidade">Privacidade</a>
+    <a href="https://github.com/eduardoworrel/worrel-agent-cockpit" rel="noopener">GitHub</a>
+  </nav>
+  <p class="foot-fine">Open source · local-first · feito para quem programa com agentes.</p>
+</footer>
+
+<script>
+// hero semi-vivo: cursor fantasma aceita uma sugestão; skills sobe, badge baixa,
+// toast confirma. Loop suave. Pausa total sob prefers-reduced-motion.
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var shot = document.querySelector('.hero-shot');
+  var cursor = document.getElementById('m-cursor');
+  var toast = document.getElementById('m-toast');
+  var badge = document.getElementById('m-badge');
+  var skills = document.getElementById('m-skills');
+  var hot = document.getElementById('m-hot');
+  if (reduce || !shot || !cursor || !badge) return;
+
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  function center(el) {
+    var a = shot.getBoundingClientRect(), b = el.getBoundingClientRect();
+    return { x: b.left - a.left + b.width / 2, y: b.top - a.top + b.height / 2 };
+  }
+  function moveTo(el) {
+    var p = center(el);
+    cursor.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)';
+  }
+
+  async function loop() {
+    while (true) {
+      // estado inicial
+      badge.textContent = '7'; skills.textContent = 'skills 6';
+      hot.textContent = '+2 sugestões'; toast.classList.remove('in');
+      cursor.style.opacity = '0';
+      moveTo(hot); // posiciona sem revelar
+      await sleep(2600);
+      cursor.style.opacity = '1';
+      await sleep(120);
+      moveTo(hot);
+      await sleep(900);
+      cursor.classList.add('tap');
+      await sleep(220);
+      cursor.classList.remove('tap');
+      // aceitou: aprende skill, pendências caem
+      skills.textContent = 'skills 7';
+      badge.textContent = '6';
+      hot.textContent = '+1 sugestão';
+      toast.classList.add('in');
+      await sleep(2400);
+      cursor.style.opacity = '0';
+      toast.classList.remove('in');
+      await sleep(900);
+    }
+  }
+  // só anima quando o hero está visível
+  if ('IntersectionObserver' in window) {
+    var started = false;
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting && !started) { started = true; loop(); io.disconnect(); } });
+    }, { threshold: 0.4 });
+    io.observe(shot);
+  } else { loop(); }
+})();
+</script>
+
+<script>
+// tilt 3D leve nos cards de feature, seguindo o cursor (refino premium)
+(function () {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
+  var MAX = 5; // graus
+  document.querySelectorAll('.feat').forEach(function (card) {
+    card.addEventListener('pointermove', function (e) {
+      var r = card.getBoundingClientRect();
+      var px = (e.clientX - r.left) / r.width;
+      var py = (e.clientY - r.top) / r.height;
+      card.classList.add('tilting');
+      card.style.setProperty('--ry', (px - 0.5) * 2 * MAX + 'deg');
+      card.style.setProperty('--rx', (0.5 - py) * 2 * MAX + 'deg');
+      card.style.setProperty('--mx', px * 100 + '%');
+      card.style.setProperty('--my', py * 100 + '%');
+    });
+    card.addEventListener('pointerleave', function () {
+      card.classList.remove('tilting');
+      card.style.setProperty('--rx', '0deg');
+      card.style.setProperty('--ry', '0deg');
+    });
+  });
+})();
+</script>
+
+<script>
+// reveal on scroll — respeita prefers-reduced-motion (CSS já neutraliza transições)
+(function () {
+  var els = document.querySelectorAll('.reveal-up, .reveal, .d1, .d2, .d3, .d4');
+  if (!('IntersectionObserver' in window)) {
+    els.forEach(function (e) { e.classList.add('in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  els.forEach(function (e) { io.observe(e); });
+  // Failsafe: se por algum motivo o observer não disparar (ex.: ambiente sem
+  // scroll, print, captura full-page), revela tudo após um tempo curto —
+  // conteúdo nunca fica permanentemente oculto.
+  setTimeout(function () { els.forEach(function (e) { e.classList.add('in'); }); }, 2500);
+})();
+</script>
+</body>
+</html>
