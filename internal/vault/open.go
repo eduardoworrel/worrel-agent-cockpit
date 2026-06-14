@@ -36,9 +36,14 @@ func OpenWithScrypt(st SettingsAccessor, password string) (*Vault, error) {
 	return New(NewScryptProvider(password, salt))
 }
 
-// Open é o ponto de montagem em produção: tenta o Keychain do macOS e, em caso de
-// falha, cai para scrypt com a senha-mestra fornecida. Usado por cmd/worrel.
+// Open é o ponto de montagem em produção. Se uma senha-mestra for fornecida
+// (WORREL_MASTER_PASSWORD), usa scrypt direto e NÃO toca no Keychain — caminho
+// determinístico para evitar os prompts do Keychain do macOS (dev, CI, demos).
+// Sem senha, tenta o Keychain e cai para scrypt se indisponível.
 func Open(st SettingsAccessor, masterPassword string) (*Vault, error) {
+	if masterPassword != "" {
+		return OpenWithScrypt(st, masterPassword)
+	}
 	if v, err := New(KeychainProvider{}); err == nil {
 		return v, nil
 	} else {
