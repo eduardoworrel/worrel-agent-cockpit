@@ -49,7 +49,9 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* overflow-x hidden tb no html (não só no body): sem isso o documentElement
+   reporta o overflow horizontal e o mobile dá zoom-out ("zoom zoado"). */
+html { scroll-behavior: smooth; overflow-x: hidden; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 body {
@@ -160,6 +162,9 @@ section { position: relative; }
   max-width: var(--maxw); margin: 0 auto; padding: 84px 28px 70px;
   display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center;
 }
+/* itens de grid têm min-width:auto por padrão e não encolhem abaixo do conteúdo,
+   estourando a largura no mobile; min-width:0 permite reflow correto. */
+.hero-copy, .hero-shot { min-width: 0; }
 .hero-fan {
   position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
   width: min(680px, 95%); height: auto; z-index: -1; opacity: .14;
