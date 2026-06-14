@@ -723,3 +723,80 @@ tr:last-child td { border-bottom: none; }
   0%, 100% { opacity: 0.45; }
   50% { opacity: 1; }
 }
+
+/* ============================================================
+   Pipelines — construtor de skills compostas
+   ============================================================ */
+
+.pl-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.pl-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+.pl-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 14px; }
+
+.pl-step {
+  display: flex; gap: 12px; min-width: 0;
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px;
+}
+
+.pl-step-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: none; }
+
+.pl-step-num {
+  width: 28px; height: 28px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--ink); color: #fff;
+  font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+}
+
+.pl-step-moves { display: flex; flex-direction: column; gap: 4px; }
+.pl-move { padding: 4px 8px; line-height: 1; min-width: 32px; justify-content: center; }
+
+.pl-step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.pl-step-head { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+
+.pl-preview {
+  position: sticky; top: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.pl-preview-code {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.pl-card-steps {
+  margin: 10px 0 0; padding-left: 18px;
+  font-size: 0.82rem; color: var(--ink-soft);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.pl-card-steps li { word-break: break-word; }
+
+@media (max-width: 860px) {
+  .pl-builder { grid-template-columns: 1fr; }
+  .pl-preview { position: static; }
+}
