@@ -74,6 +74,10 @@ func migrateAddColumns(db *sql.DB) error {
 			`ALTER TABLE sessions ADD COLUMN workspace_dir TEXT NOT NULL DEFAULT ''`},
 		{"sessions", "source_dir",
 			`ALTER TABLE sessions ADD COLUMN source_dir TEXT NOT NULL DEFAULT ''`},
+		// metadata JSON da skill: {kind:"pipeline", steps:[{skill_id,note,inputs,credentials}]}
+		// para skills compostas (pipelines). '{}' para skills normais.
+		{"skills", "metadata",
+			`ALTER TABLE skills ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`},
 	}
 	for _, w := range wanted {
 		var n int
