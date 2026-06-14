@@ -3,6 +3,8 @@ package pidev
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -79,16 +81,8 @@ func TestBuildRunArgs(t *testing.T) {
 	}
 }
 
-func TestUnsupportedMethodsReturnErrNotSupported(t *testing.T) {
-	a := New()
-
-	if _, err := a.DiscoverSessions(time.Now()); !errors.Is(err, adapter.ErrNotSupported) {
-		t.Errorf("DiscoverSessions: quer ErrNotSupported, got %v", err)
-	}
-	if _, err := a.ReadTranscript(adapter.SessionRef{}); !errors.Is(err, adapter.ErrNotSupported) {
-		t.Errorf("ReadTranscript: quer ErrNotSupported, got %v", err)
-	}
-	if _, _, ok := a.ContextUsage(adapter.SessionRef{}); ok {
+func TestContextUsageUnsupported(t *testing.T) {
+	if _, _, ok := New().ContextUsage(adapter.SessionRef{}); ok {
 		t.Error("ContextUsage: quer ok=false")
 	}
 }
@@ -102,6 +96,107 @@ func TestRunHeadlessFailsGracefullyWhenBinaryMissing(t *testing.T) {
 	_, err := New().RunHeadless(context.Background(), "oi", adapter.HeadlessOpts{})
 	if err == nil {
 		t.Error("esperado erro quando o binário não existe")
+	}
+}
+
+const fixtureSessionJSONL = `{"type":"session","version":3,"id":"sess-uuid-1","timestamp":"2026-06-10T12:00:00Z","cwd":"/repos/x"}
+{"type":"message","id":"m1","timestamp":"2026-06-10T12:00:01Z","message":{"role":"user","content":"como faço um build?"}}
+{"type":"message","id":"m2","timestamp":"2026-06-10T12:00:02Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"Use go build."}],"usage":{"input":120,"output":35,"totalTokens":155}}}
+{"type":"message","id":"m3","timestamp":"2026-06-10T12:00:03Z","message":{"role":"toolResult","content":[{"type":"text","text":"ok"}],"isError":false}}
+{"type":"model_change","id":"x"}
+`
+
+func writeSession(t *testing.T, root string) string {
+	t.Helper()
+	dir := filepath.Join(root, "--repos-x--")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "20260610_sess-uuid-1.jsonl")
+	if err := os.WriteFile(p, []byte(fixtureSessionJSONL), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestDiscoverSessions(t *testing.T) {
+	root := t.TempDir()
+	path := writeSession(t, root)
+	a := &Adapter{SessionsRoot: root}
+
+	sess, err := a.DiscoverSessions(time.Time{})
+	if err != nil {
+		t.Fatalf("DiscoverSessions erro: %v", err)
+	}
+	if len(sess) != 1 {
+		t.Fatalf("quer 1 sessão, got %d", len(sess))
+	}
+	s := sess[0]
+	if s.ExternalRef != "sess-uuid-1" {
+		t.Errorf("ExternalRef = %q", s.ExternalRef)
+	}
+	if s.Dir != "/repos/x" {
+		t.Errorf("Dir = %q", s.Dir)
+	}
+	if s.Title != "como faço um build?" {
+		t.Errorf("Title = %q", s.Title)
+	}
+	if s.Path != path {
+		t.Errorf("Path = %q quer %q", s.Path, path)
+	}
+	if s.StartedAt.IsZero() || s.UpdatedAt.IsZero() {
+		t.Errorf("tempos não preenchidos: %+v", s)
+	}
+
+	// filtro por since (futuro) → nada.
+	future := time.Now().Add(time.Hour)
+	if got, _ := a.DiscoverSessions(future); len(got) != 0 {
+		t.Errorf("since futuro deveria filtrar tudo, got %d", len(got))
+	}
+}
+
+func TestReadTranscript(t *testing.T) {
+	root := t.TempDir()
+	path := writeSession(t, root)
+	a := &Adapter{SessionsRoot: root}
+
+	evs, err := a.ReadTranscript(adapter.SessionRef{Path: path})
+	if err != nil {
+		t.Fatalf("ReadTranscript erro: %v", err)
+	}
+	if len(evs) != 3 {
+		t.Fatalf("quer 3 eventos, got %d: %+v", len(evs), evs)
+	}
+	if evs[0].Role != "user" || evs[0].Content != "como faço um build?" {
+		t.Errorf("evento 0 errado: %+v", evs[0])
+	}
+	if evs[1].Role != "assistant" || evs[1].Content != "Use go build." {
+		t.Errorf("evento 1 texto: %+v", evs[1])
+	}
+	if evs[1].TokensIn != 120 || evs[1].TokensOut != 35 {
+		t.Errorf("tokens errados: %+v", evs[1])
+	}
+	if evs[2].Role != "toolResult" || evs[2].Content != "ok" {
+		t.Errorf("evento 2 errado: %+v", evs[2])
+	}
+	if evs[0].CreatedAt == 0 {
+		t.Error("CreatedAt não preenchido")
+	}
+}
+
+func TestExtractHeadlessResult(t *testing.T) {
+	out := `{"type":"session","id":"s"}
+{"type":"message_start","message":{"role":"assistant"}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"x"},{"type":"text","text":"Olá"}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"mundo"}]}}
+`
+	if got := extractHeadlessResult([]byte(out)); got != "Olá\nmundo" {
+		t.Fatalf("extractHeadlessResult = %q", got)
+	}
+	// fallback: sem eventos extraíveis → raw trim.
+	raw := "texto cru\n"
+	if got := extractHeadlessResult([]byte(raw)); got != "texto cru" {
+		t.Fatalf("fallback = %q", got)
 	}
 }
 

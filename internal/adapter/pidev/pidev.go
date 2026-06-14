@@ -11,17 +11,23 @@
 //     como arquivos JSONL (estrutura em árvore). Override via flag `--session-dir`
 //     ou env PI_CODING_AGENT_SESSION_DIR.
 //
-// O que NÃO está confirmado e ficou como degradação graciosa (ErrNotSupported)
-// + TODO — ver perguntas no fim do pacote:
+// O que NÃO está confirmado e ficou como degradação graciosa:
 //   - MCP: o Pi NÃO traz suporte MCP embutido; a doc sugere uma "extension".
 //     Por isso BuildInteractive NÃO injeta MCPURL (sem flag/arquivo confirmado).
-//   - Schema exato das linhas do JSONL de sessão (campos de role/conteúdo/usage)
-//     e layout de subdiretórios por working dir → DiscoverSessions/ReadTranscript/
-//     ContextUsage não implementados ainda.
+//   - ContextUsage: o JSONL carrega usage por mensagem assistant, mas o limite de
+//     contexto (window) não é exposto de forma confiável → continua ok=false.
+//
+// O schema das linhas do JSONL de sessão FOI confirmado (repo earendil-works/pi):
+//   - 1ª linha: {"type":"session","version":3,"id":..,"timestamp":..,"cwd":..}
+//   - mensagens: {"type":"message",...,"message":{role,content,usage,...}}
+// DiscoverSessions/ReadTranscript usam esse schema; RunHeadless extrai o texto
+// dos eventos message_end assistant.
 package pidev
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,7 +67,8 @@ func (a *Adapter) Capabilities() adapter.Caps {
 	//   Headless=true       → `pi -p ...` confirmado.
 	//   OwnSessionID=false  → Pi gera/gerencia o id da sessão; não há flag
 	//                         confirmada para forçar um UUID externo no spawn.
-	//   ContextMeasured=false → schema de usage do JSONL ainda não confirmado.
+	//   ContextMeasured=false → usage por mensagem existe, mas a janela total de
+	//                            contexto não é exposta de forma confiável.
 	return adapter.Caps{Hooks: false, Headless: true, OwnSessionID: false, ContextMeasured: false}
 }
 
@@ -129,12 +136,40 @@ func (a *Adapter) RunHeadless(ctx context.Context, prompt string, opts adapter.H
 	if err != nil {
 		return string(out), err
 	}
-	// TODO(confirmar): o schema exato dos eventos de `pi --mode json` não está
-	// documentado. Em vez de inventar um parser (que poderia descartar texto),
-	// devolvemos a saída crua — consumidores recebem algo utilizável. Quando o
-	// formato dos eventos for confirmado, extrair só o texto final do assistente
-	// (vide claudecode.extractHeadlessResult / opencode.extractOpencodeText).
-	return string(out), nil
+	return extractHeadlessResult(out), nil
+}
+
+// extractHeadlessResult percorre a saída JSONL de `pi --mode json` e concatena o
+// texto dos eventos {"type":"message_end","message":{role:"assistant",content:[...]}}.
+// Fallback: se nenhum texto for extraído, devolve a saída crua (trim).
+func extractHeadlessResult(out []byte) string {
+	var b strings.Builder
+	sc := bufio.NewScanner(strings.NewReader(string(out)))
+	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	for sc.Scan() {
+		line := sc.Bytes()
+		var ev struct {
+			Type    string      `json:"type"`
+			Message *piAgentMsg `json:"message"`
+		}
+		if json.Unmarshal(line, &ev) != nil {
+			continue
+		}
+		if ev.Type != "message_end" || ev.Message == nil || ev.Message.Role != "assistant" {
+			continue
+		}
+		text, _ := extractText(ev.Message.Content, ev.Message.Role)
+		if text != "" {
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(text)
+		}
+	}
+	if b.Len() == 0 {
+		return strings.TrimSpace(string(out))
+	}
+	return b.String()
 }
 
 // SessionsRootOrDefault devolve o root configurado ou o default (~/.pi/agent/sessions).
@@ -148,24 +183,215 @@ func (a *Adapter) SessionsRootOrDefault() string {
 	return ""
 }
 
-// DiscoverSessions: degradação graciosa (spec §4). As sessões vivem em
-// ~/.pi/agent/sessions/ como JSONL, mas o layout por working dir e o schema das
-// linhas ainda não foram confirmados. Não suportado até confirmação.
-// TODO(confirmar): layout de subdiretórios e schema do JSONL para varredura.
+// --- Schema do JSONL de sessão do Pi (earendil-works/pi) ---
+
+// piHeader é a 1ª linha do JSONL: {"type":"session",...}.
+type piHeader struct {
+	Type      string `json:"type"`
+	ID        string `json:"id"`
+	Timestamp string `json:"timestamp"`
+	Cwd       string `json:"cwd"`
+}
+
+// piLine é uma linha genérica do JSONL (header ou message).
+type piLine struct {
+	Type      string      `json:"type"`
+	ID        string      `json:"id"`
+	Timestamp string      `json:"timestamp"`
+	Cwd       string      `json:"cwd"`
+	Message   *piAgentMsg `json:"message"`
+}
+
+// piAgentMsg é o campo "message" (AgentMessage) das entradas type=="message".
+type piAgentMsg struct {
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+	Usage   *piUsage        `json:"usage"`
+}
+
+type piUsage struct {
+	Input  int64 `json:"input"`
+	Output int64 `json:"output"`
+}
+
+// piContentBlock é um bloco do array de content (text/thinking/etc.).
+type piContentBlock struct {
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	Thinking string `json:"thinking"`
+}
+
+// extractText normaliza o content de uma mensagem do Pi em texto plano.
+// user: pode ser string direta OU array de blocos {type:"text",text}.
+// assistant/toolResult: array de blocos; concatena os "text".
+// kind = role.
+func extractText(raw json.RawMessage, role string) (text, kind string) {
+	kind = role
+	if len(raw) == 0 {
+		return "", kind
+	}
+	// content como string (user).
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s, kind
+	}
+	// content como array de blocos.
+	var blocks []piContentBlock
+	if json.Unmarshal(raw, &blocks) != nil {
+		return "", kind
+	}
+	var b strings.Builder
+	for _, bl := range blocks {
+		switch bl.Type {
+		case "text":
+			if bl.Text != "" {
+				if b.Len() > 0 {
+					b.WriteByte('\n')
+				}
+				b.WriteString(bl.Text)
+			}
+		}
+	}
+	return b.String(), kind
+}
+
+// DiscoverSessions varre SessionsRoot por *.jsonl; lê a 1ª linha (header) p/
+// ExternalRef(id)+Dir(cwd)+StartedAt; UpdatedAt=mtime; filtra por since (mtime);
+// Title = 1º texto de user (~80 chars) ou ExternalRef. Pula arquivos sem header.
 func (a *Adapter) DiscoverSessions(since time.Time) ([]adapter.ExternalSession, error) {
-	return nil, adapter.ErrNotSupported
+	root := a.SessionsRootOrDefault()
+	if root == "" {
+		return nil, nil
+	}
+	var out []adapter.ExternalSession
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		if !since.IsZero() && info.ModTime().Before(since) {
+			return nil
+		}
+		es, ok := a.scanSessionMeta(path, info.ModTime())
+		if ok {
+			out = append(out, es)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-// ReadTranscript: degradação graciosa (spec §4). Depende do schema do JSONL de
-// sessão, ainda não confirmado.
-// TODO(confirmar): mapeamento linha JSONL → TranscriptEvent (role/kind/content/tokens).
+// scanSessionMeta lê o header (1ª linha) e o 1º texto de user para metadados.
+func (a *Adapter) scanSessionMeta(path string, mtime time.Time) (adapter.ExternalSession, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return adapter.ExternalSession{}, false
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	if !sc.Scan() {
+		return adapter.ExternalSession{}, false
+	}
+	var hdr piHeader
+	if json.Unmarshal(sc.Bytes(), &hdr) != nil || hdr.Type != "session" || hdr.ID == "" {
+		return adapter.ExternalSession{}, false
+	}
+	es := adapter.ExternalSession{
+		Adapter:     a.ID(),
+		ExternalRef: hdr.ID,
+		Dir:         hdr.Cwd,
+		Path:        path,
+		UpdatedAt:   mtime,
+	}
+	if t, err := time.Parse(time.RFC3339, hdr.Timestamp); err == nil {
+		es.StartedAt = t
+	}
+	// procura o 1º texto de user para o título.
+	for sc.Scan() {
+		var ln piLine
+		if json.Unmarshal(sc.Bytes(), &ln) != nil {
+			continue
+		}
+		if ln.Type != "message" || ln.Message == nil || ln.Message.Role != "user" {
+			continue
+		}
+		text, _ := extractText(ln.Message.Content, ln.Message.Role)
+		text = strings.TrimSpace(text)
+		if text != "" {
+			es.Title = truncate(text, 80)
+			break
+		}
+	}
+	if es.Title == "" {
+		es.Title = es.ExternalRef
+	}
+	return es, true
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
+// ReadTranscript abre ref.Path e converte cada linha type=="message" (user/
+// assistant/toolResult) em TranscriptEvent. Pula entradas vazias.
 func (a *Adapter) ReadTranscript(ref adapter.SessionRef) ([]adapter.TranscriptEvent, error) {
-	return nil, adapter.ErrNotSupported
+	f, err := os.Open(ref.Path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var out []adapter.TranscriptEvent
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	for sc.Scan() {
+		var ln piLine
+		if json.Unmarshal(sc.Bytes(), &ln) != nil {
+			continue
+		}
+		if ln.Type != "message" || ln.Message == nil {
+			continue
+		}
+		switch ln.Message.Role {
+		case "user", "assistant", "toolResult":
+		default:
+			continue
+		}
+		text, kind := extractText(ln.Message.Content, ln.Message.Role)
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		te := adapter.TranscriptEvent{Role: ln.Message.Role, Kind: kind, Content: text}
+		if ln.Message.Usage != nil {
+			te.TokensIn = ln.Message.Usage.Input
+			te.TokensOut = ln.Message.Usage.Output
+		}
+		if t, err := time.Parse(time.RFC3339, ln.Timestamp); err == nil {
+			te.CreatedAt = t.UnixMilli()
+		}
+		out = append(out, te)
+	}
+	return out, sc.Err()
 }
 
-// ContextUsage: degradação graciosa (spec §4). Sem schema de usage confirmado no
-// JSONL do Pi, não há como estimar contexto. Handoff manual continua disponível.
-// TODO(confirmar): existência/nome dos campos de usage por mensagem no JSONL.
+// ContextUsage: degradação graciosa. O JSONL carrega usage por mensagem, mas a
+// janela total de contexto não é exposta de forma confiável → ok=false.
 func (a *Adapter) ContextUsage(ref adapter.SessionRef) (used, limit int, ok bool) {
 	return 0, 0, false
 }
