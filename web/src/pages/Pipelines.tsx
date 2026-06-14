@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { listProjects } from '../api';
-import type { Project, Skill } from '../api';
+import type { Project, Skill, Session } from '../api';
+import NewSessionModal from '../components/NewSessionModal';
 import {
   listPipelineSkills,
   listPipelines,
@@ -30,6 +32,7 @@ function buildMarkdown(name: string, steps: PipelineStep[], skillName: (id: stri
 
 export default function Pipelines() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const tr = (key: string, dft: string, opts?: Record<string, unknown>) =>
     t(key, { defaultValue: dft, ...opts });
 
@@ -47,6 +50,8 @@ export default function Pipelines() {
   const [steps, setSteps] = useState<PipelineStep[]>([]);
   const [busy, setBusy] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
+  // Sessão a partir de um pipeline: injeta o markdown do pipeline no primer.
+  const [sessionPipeline, setSessionPipeline] = useState<{ content: string; label: string } | null>(null);
 
   useEffect(() => {
     listProjects()
@@ -174,6 +179,16 @@ export default function Pipelines() {
       </div>
 
       {error && <p className="error-banner">{error}</p>}
+
+      {sessionPipeline && projectId && (
+        <NewSessionModal
+          projectId={projectId}
+          skill={sessionPipeline.content}
+          skillLabel={sessionPipeline.label}
+          onCreated={(sess: Session) => { setSessionPipeline(null); navigate(`/sessions/${sess.id}`); }}
+          onClose={() => setSessionPipeline(null)}
+        />
+      )}
 
       {projects.length === 0 ? (
         <div className="empty">
@@ -361,6 +376,21 @@ export default function Pipelines() {
                   ))}
                   {p.steps.length > 5 && <li className="faint">…</li>}
                 </ol>
+                <div style={{ marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionPipeline({
+                        content: buildMarkdown(p.name, p.steps, skillName),
+                        label: p.name,
+                      });
+                    }}
+                  >
+                    ▶ {tr('sessions.startFromPipeline', 'Start from Pipeline')}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -16,7 +16,6 @@ import {
   rejectSuggestion,
   deferSuggestion,
   listAdapters,
-  createSession,
   getSkillStats,
   setSkillPolicy,
   setProjectSkillsPolicy,
@@ -71,8 +70,9 @@ export default function Project() {
   // Sessions
   const [sessions, setSessions] = useState<Session[]>([]);
   const [adapters, setAdapters] = useState<DetectedAdapter[]>([]);
-  const [adapterId, setAdapterId] = useState('');
   const [showNewSession, setShowNewSession] = useState(false);
+  // Quando preenchido, o NewSessionModal injeta este conteúdo (skill/pipeline) no primer.
+  const [sessionSkill, setSessionSkill] = useState<{ content: string; label: string } | null>(null);
 
   // Suggestions
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -105,7 +105,6 @@ export default function Project() {
         setSuggestions(sugs);
         const present = adps.filter((a) => a.installed.present);
         setAdapters(present);
-        if (present[0] && !adapterId) setAdapterId(present[0].id);
       } catch {
         if (!cancelled) setError(true);
       } finally {
@@ -272,10 +271,10 @@ export default function Project() {
     });
   }
 
-  async function startSession(skill?: string) {
-    if (!adapterId || !id) return;
-    const sess = await createSession(id, adapterId, skill);
-    navigate(`/sessions/${sess.id}`);
+  // Abre o modal de sessão já com o conteúdo da skill para injeção no primer.
+  function openSkillSession(content: string, label: string) {
+    setSessionSkill({ content, label });
+    setShowNewSession(true);
   }
 
   if (loading) return <div className="main"><p>{t('common.loading')}</p></div>;
@@ -291,14 +290,9 @@ export default function Project() {
         </div>
         {adapters.length > 0 && (
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" disabled={busy} onClick={() => setShowNewSession(true)}>
+            <button className="btn btn-primary" disabled={busy} onClick={() => { setSessionSkill(null); setShowNewSession(true); }}>
               {t('sessions.new')}
             </button>
-            {skills.length > 0 && adapterId && (
-              <button className="btn btn-primary" disabled={busy} onClick={() => { const sk = skills[0]; if (sk) void startSession(sk.content); }}>
-                {t('sessions.startFromSkill')}
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -308,8 +302,10 @@ export default function Project() {
       {showNewSession && id && (
         <NewSessionModal
           projectId={id}
-          onCreated={(sess) => { setShowNewSession(false); navigate(`/sessions/${sess.id}`); }}
-          onClose={() => setShowNewSession(false)}
+          skill={sessionSkill?.content}
+          skillLabel={sessionSkill?.label}
+          onCreated={(sess) => { setShowNewSession(false); setSessionSkill(null); navigate(`/sessions/${sess.id}`); }}
+          onClose={() => { setShowNewSession(false); setSessionSkill(null); }}
         />
       )}
 
@@ -452,10 +448,10 @@ export default function Project() {
                         )}
                       </span>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {adapterId && (
+                        {adapters.length > 0 && (
                           <button className="btn btn-primary" style={{ fontSize: '0.8rem' }} disabled={busy}
-                            onClick={() => startSession(sk.content)}>
-                            {t('sessions.startFromSkill')}
+                            onClick={() => openSkillSession(sk.content, sk.name)}>
+                            ▶ {t('sessions.startFromSkill')}
                           </button>
                         )}
                         <button className="btn btn-secondary" onClick={() => {
