@@ -2,6 +2,7 @@
 
 > Camada de memória para CLIs de codificação agêntica. Observa suas sessões (Claude Code, OpenCode, Gemini, Codex, Pi) e destila **Projetos**, **Memórias** e **Skills** reutilizáveis — 100% local, sem telemetria, usando só a sua assinatura.
 
+![release](https://img.shields.io/github/v/release/eduardoworrel/worrel-agent-cockpit)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![local-first](https://img.shields.io/badge/local--first-no%20telemetry-2ea44f)
 ![platforms](https://img.shields.io/badge/macOS%20%C2%B7%20Linux-arm64%20%7C%20x64-555)
