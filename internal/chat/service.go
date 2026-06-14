@@ -79,6 +79,14 @@ func (svc *Service) SendMessage(ctx context.Context, threadID, userText, provide
 		return "", nil, nil, err
 	}
 
+	// Saneia a SAÍDA do LLM antes de exibir/persistir/criar artefatos:
+	// (1) redige segredos — o modelo pode propor uma credencial crua; nenhum
+	//     segredo cru pode virar bolha de chat nem memória/skill;
+	// (2) escapa control chars dentro do array JSON — erro comum do LLM que
+	//     invalidava o JSON e fazia os candidatos "vazarem" como texto.
+	out, _ = redactSecrets(out)
+	out = sanitizeCandidateJSON(out)
+
 	assistant = extractText(out)
 	createdSuggestionIDs = svc.createSuggestions(out, scope)
 
@@ -112,6 +120,58 @@ func extractText(raw string) string {
 		}
 	}
 	return s
+}
+
+// sanitizeCandidateJSON escapa quebras de linha/tabs CRUAS dentro de strings do
+// array JSON de candidatos (erro comum do LLM que invalida o JSON e faz o array
+// vazar como texto, sem virar sugestão). Opera só na região [ … ] e só dentro de
+// strings — fora delas o JSON pode ter espaços/quebras normalmente.
+func sanitizeCandidateJSON(s string) string {
+	i := strings.Index(s, "[")
+	j := strings.LastIndex(s, "]")
+	if i < 0 || j <= i {
+		return s
+	}
+	var b strings.Builder
+	inStr, esc := false, false
+	for _, r := range s[i : j+1] {
+		if esc {
+			b.WriteRune(r)
+			esc = false
+			continue
+		}
+		switch r {
+		case '\\':
+			b.WriteRune(r)
+			if inStr {
+				esc = true
+			}
+		case '"':
+			inStr = !inStr
+			b.WriteRune(r)
+		case '\n':
+			if inStr {
+				b.WriteString(`\n`)
+			} else {
+				b.WriteRune(r)
+			}
+		case '\r':
+			if inStr {
+				b.WriteString(`\r`)
+			} else {
+				b.WriteRune(r)
+			}
+		case '\t':
+			if inStr {
+				b.WriteString(`\t`)
+			} else {
+				b.WriteRune(r)
+			}
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return s[:i] + b.String() + s[j+1:]
 }
 
 // pipelineCandidate é o contrato fixo do candidato type:"pipeline".

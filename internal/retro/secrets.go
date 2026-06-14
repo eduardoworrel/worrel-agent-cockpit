@@ -27,6 +27,9 @@ var patterns = []struct {
 	{"github_token", regexp.MustCompile(`gh[opsu]_[A-Za-z0-9]{16,}`)},
 	{"openai_key", regexp.MustCompile(`sk-[A-Za-z0-9_-]{16,}`)},
 	{"aws_access_key", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
+	// Chaves estilo prefixo_ambiente_valor (Stripe, Guara, etc.): sk_live_, pk_test_,
+	// gk_live_… O underscore quebra o padrão base64 abaixo, então precisa ser próprio.
+	{"api_key", regexp.MustCompile(`\b[A-Za-z]{2,8}_(?:live|test)_[A-Za-z0-9]{16,}\b`)},
 	{"password", regexp.MustCompile(`(?i)password\s*[=:]\s*(\S+)`)},
 	{"bearer_token", regexp.MustCompile(`(?i)bearer\s+([A-Za-z0-9._-]{12,})`)},
 	{"long_secret", regexp.MustCompile(`\b[A-Za-z0-9+/]{40,}={0,2}\b`)},
