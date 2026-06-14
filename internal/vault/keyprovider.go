@@ -50,13 +50,16 @@ func (KeychainProvider) MasterKey() ([]byte, error) {
 			return key, nil
 		}
 	}
-	// Primeiro uso: gera chave nova e grava no Keychain.
+	// Primeiro uso: gera chave nova e grava no Keychain. -U (update) torna a
+	// gravação idempotente: se o item já existe (ex.: chave anterior ilegível por
+	// ACL após rebuild do binário), atualiza em vez de falhar com "já existe" —
+	// que era a origem do erro "não foi possível armazenar para worrel".
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
 	if err := exec.Command("security", "add-generic-password",
-		"-a", keychainAccount, "-s", keychainService,
+		"-U", "-a", keychainAccount, "-s", keychainService,
 		"-w", hex.EncodeToString(key)).Run(); err != nil {
 		return nil, fmt.Errorf("security add-generic-password: %w", err)
 	}
