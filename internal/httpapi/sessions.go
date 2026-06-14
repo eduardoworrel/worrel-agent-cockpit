@@ -169,7 +169,15 @@ func (s *Server) handleActiveSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleKillSession(w http.ResponseWriter, r *http.Request) {
-	if err := s.deps.Wrapper.Kill(r.PathValue("id")); err != nil {
+	id := r.PathValue("id")
+	// Best-effort: mata o PTY se ainda estiver vivo NESTE processo. Após um
+	// restart do servidor o processo não existe mais no mapa em memória — isso
+	// não é erro (a sessão fica "órfã": active no banco, sem PTY vivo).
+	_ = s.deps.Wrapper.Kill(id)
+	// Encerra a sessão no store SEMPRE, para que ela saia da faixa de ativas
+	// mesmo quando o PTY já não existe. Sem isso, o × não disparava nada para
+	// sessões órfãs (Kill falhava com 404 e a sessão seguia active).
+	if err := s.deps.Store.EndSession(id); err != nil {
 		writeErr(w, 404, err.Error())
 		return
 	}
