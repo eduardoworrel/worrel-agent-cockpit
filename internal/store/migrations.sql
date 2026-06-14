@@ -168,3 +168,25 @@ CREATE TABLE IF NOT EXISTS secret_suppressions (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_retro_run_sessions_state ON retro_run_sessions(run_id, state);
+
+-- Chat de destilação: conversas guiadas por IA sobre o histórico, que propõem
+-- skills/memórias/projetos/pipelines como sugestões (origin='chat').
+CREATE TABLE IF NOT EXISTS chat_threads (
+  id TEXT PRIMARY KEY,
+  scope TEXT NOT NULL DEFAULT '{}',     -- JSON: {project_id?, cluster?, window_days?, clis[]?}
+  provider TEXT NOT NULL DEFAULT '',
+  model TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS chat_messages (
+  thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,
+  role TEXT NOT NULL,                   -- user | assistant
+  content TEXT NOT NULL,
+  sources TEXT NOT NULL DEFAULT '[]',   -- JSON: ids/refs das sessões usadas como contexto
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (thread_id, seq)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, seq);
