@@ -143,6 +143,8 @@ export default function RetroWizard() {
               <option value="">{t('retro.wizard.providerDefault')}</option>
               <option value="claude-code">claude-code</option>
               <option value="opencode">opencode</option>
+              <option value="gemini">gemini</option>
+              <option value="codex">codex</option>
             </select>
           </div>
           <div>

@@ -81,6 +81,8 @@ export default function Settings() {
         >
           <option value="claude-code">claude-code</option>
           <option value="opencode">opencode</option>
+          <option value="gemini">gemini</option>
+          <option value="codex">codex</option>
         </select>
 
         <label htmlFor="set-health-rate" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('settings.healthMinRate')}</label>

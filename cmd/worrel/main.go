@@ -14,7 +14,10 @@ import (
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/claudecode"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/codex"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/gemini"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/opencode"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/pidev"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
@@ -77,9 +80,15 @@ func main() {
 
 	cc := &claudecode.Adapter{ProjectsRoot: claudeProjectsRoot}
 	oc := &opencode.Adapter{}
+	gem := gemini.New()
+	cx := codex.New()
+	pd := pidev.New()
 	reg := adapter.NewRegistry()
 	reg.Register(cc)
 	reg.Register(oc)
+	reg.Register(gem)
+	reg.Register(cx)
+	reg.Register(pd)
 	wm := wrapper.New(st, b)
 
 	// endereço de escuta: --port (se setado) sobrepõe a porta de --addr.
@@ -96,24 +105,30 @@ func main() {
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	// Fase 4: motor de varredura, importador e watcher.
+	// Adapters headless por ID (todos os que suportam RunHeadless): reusado para
+	// (a) escolher o adapter das análises pelo setting e (b) override por run na
+	// análise retroativa. pidev fica de fora enquanto RunHeadless não é suportado.
+	retroHeadless := map[string]distill.Headless{cc.ID(): cc, oc.ID(): oc, gem.ID(): gem, cx.ID(): cx}
 	// Adaptador headless das análises respeita o setting (spec §10): default
-	// claude-code; opencode quando configurado (evita gastar a quota do Claude).
+	// claude-code; outro provider quando configurado (evita gastar a quota do Claude).
 	var headless distill.Headless = cc
-	if st.GetSetting("headless_adapter", "claude-code") == "opencode" {
-		headless = oc
+	if h, ok := retroHeadless[st.GetSetting("headless_adapter", "claude-code")]; ok {
+		headless = h
 	}
 	eng := distill.New(st, headless, b)
 	imp := distill.NewImporter(st, b)
+	// Observadores que sabem ler histórico (DiscoverSessions/ReadTranscript).
+	importers := []struct {
+		name string
+		obs  distill.Observer
+	}{{"claude-code", cc}, {"opencode", oc}, {"gemini", gem}, {"codex", cx}}
 	runImport := func() {
-		if n, err := imp.Import(cc); err != nil {
-			log.Printf("importer claude-code: %v", err)
-		} else if n > 0 {
-			log.Printf("importer: %d sessão(ões) importada(s) do claude-code", n)
-		}
-		if n, err := imp.Import(oc); err != nil {
-			log.Printf("importer opencode: %v", err)
-		} else if n > 0 {
-			log.Printf("importer: %d sessão(ões) importada(s) do opencode", n)
+		for _, im := range importers {
+			if n, err := imp.Import(im.obs); err != nil {
+				log.Printf("importer %s: %v", im.name, err)
+			} else if n > 0 {
+				log.Printf("importer: %d sessão(ões) importada(s) do %s", n, im.name)
+			}
 		}
 	}
 	watchRoot := cc.ProjectsRootOrDefault()
@@ -147,10 +162,10 @@ func main() {
 
 	// Fase 8: serviço de análise retroativa. Observadores = adaptadores instalados
 	// (claude-code, opencode), que satisfazem retro.Observer; reusa engine + applier.
-	// Mapa de adapters headless por ID para override de provider por run
-	// (seletor na tela de análise retroativa). Vazio = usa o adapter do boot.
-	retroHeadless := map[string]distill.Headless{cc.ID(): cc, oc.ID(): oc}
-	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc}, retroHeadless)
+	// retroHeadless (definido acima) mapeia provider→headless p/ override por run
+	// (seletor na tela de análise retroativa). Observadores = adapters que leem
+	// histórico (claude-code, opencode, gemini, codex).
+	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc, gem, cx}, retroHeadless)
 
 	srv := httpapi.New(httpapi.Deps{
 		Store:     st,
