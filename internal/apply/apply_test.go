@@ -150,6 +150,29 @@ func TestApplyCreateProject(t *testing.T) {
 	}
 }
 
+// TestApplyCreateProjectNameFallbackAndSeed: candidato sem `name` (nome no
+// título da sugestão) → projeto recebe o título como nome (não fica sem título)
+// e a descrição é semeada na memória (contexto p/ sessão nova).
+func TestApplyCreateProjectNameFallbackAndSeed(t *testing.T) {
+	a, s := setup(t)
+	sg, err := s.CreateSuggestion(&store.Suggestion{Type: "create_project",
+		Title: "Vela v2", Payload: `{"description":"Stack: Go + Rust CLI"}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Accept(sg.ID); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.ListProjects()
+	if len(list) != 1 || list[0].Name != "Vela v2" {
+		t.Fatalf("projeto deveria ter nome do título, veio %+v", list)
+	}
+	mem, _ := s.GetMemory(list[0].ID)
+	if mem == nil || mem.Content == "" {
+		t.Fatal("memória do projeto deveria ser semeada com a descrição")
+	}
+}
+
 func TestApplyMirrorFailureDoesNotAbort(t *testing.T) {
 	s, err := store.Open(t.TempDir() + "/t.db")
 	if err != nil {
