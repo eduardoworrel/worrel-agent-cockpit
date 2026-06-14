@@ -1,0 +1,13 @@
+{
+  "leadName": "Acme Corp",
+  "leadInitials": "AC",
+  "accent": "#2fa4ee",
+  "cliList": ["Claude Code", "Codex", "Gemini"],
+  "sampleProjects": [
+    { "name": "acme-payments", "blurb": "billing core + ledger", "memories": 24, "skills": 7 },
+    { "name": "acme-dashboard", "blurb": "admin analytics UI", "memories": 15, "skills": 4 },
+    { "name": "acme-mobile", "blurb": "iOS + Android client", "memories": 11, "skills": 5 }
+  ],
+  "skills": ["Deploy staging pipeline", "Rotate API keys", "Run e2e before merge"],
+  "ctaText": "npx worrel --project acme"
+}

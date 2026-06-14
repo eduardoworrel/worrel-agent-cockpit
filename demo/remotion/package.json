@@ -1,0 +1,24 @@
+{
+  "name": "worrel-demo-remotion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personalized demo video pipeline for worrel (Remotion, React -> MP4, JSON-parameterized)",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render",
+    "still": "remotion still",
+    "render:generic": "remotion render Demo out/generic.mp4 --props=props/generic.json",
+    "render:acme": "remotion render Demo out/acme.mp4 --props=props/acme.json"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.290",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.290",
+    "zod": "3.22.3"
+  },
+  "devDependencies": {
+    "@types/react": "19.0.0",
+    "typescript": "5.6.3"
+  }
+}

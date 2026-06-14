@@ -1,0 +1,13 @@
+{
+  "leadName": "your team",
+  "leadInitials": "we",
+  "accent": "#ff6a1a",
+  "cliList": ["Claude Code", "OpenCode", "Gemini", "Codex", "Pi"],
+  "sampleProjects": [
+    { "name": "acme-payments", "blurb": "PCI scope + webhooks", "memories": 18, "skills": 5 },
+    { "name": "blog-engine", "blurb": "SSG + content pipeline", "memories": 9, "skills": 3 },
+    { "name": "mobile-checkout", "blurb": "RN flow + analytics", "memories": 12, "skills": 4 }
+  ],
+  "skills": ["Deploy staging pipeline", "Rotate API keys", "Run e2e before merge"],
+  "ctaText": "npx worrel"
+}
