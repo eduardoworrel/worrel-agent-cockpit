@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/metasession"
 )
 
 // ProjectsRoot é configurável para testes. Se vazio, usa ~/.claude/projects.
@@ -97,6 +98,8 @@ func (a *Adapter) scanSessionMeta(path string) (adapter.ExternalSession, bool) {
 	}
 	defer f.Close()
 	es := adapter.ExternalSession{Adapter: "claude-code"}
+	firstUserText := ""
+	haveFirstUser := false
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	for sc.Scan() {
@@ -113,12 +116,25 @@ func (a *Adapter) scanSessionMeta(path string) (adapter.ExternalSession, bool) {
 		if ev.Type == "ai-title" && ev.Title != "" {
 			es.Title = ev.Title
 		}
+		// Captura o PRIMEIRO texto de usuário para detectar meta-sessões do
+		// próprio worrel (chamadas headless do destilador/clusterizador).
+		if !haveFirstUser && ev.Type == "user" && ev.Message != nil {
+			if text, _ := extractText(ev.Message.Content); strings.TrimSpace(text) != "" {
+				firstUserText = text
+				haveFirstUser = true
+			}
+		}
 		if t, err := time.Parse(time.RFC3339, ev.Timestamp); err == nil {
 			if es.StartedAt.IsZero() {
 				es.StartedAt = t
 			}
 			es.UpdatedAt = t
 		}
+	}
+	// Descarta meta-sessões na própria descoberta: inventário e importador veem
+	// exatamente o mesmo conjunto de sessões "reais".
+	if metasession.IsWorrelMeta(firstUserText) {
+		return adapter.ExternalSession{}, false
 	}
 	if es.ExternalRef == "" {
 		es.ExternalRef = strings.TrimSuffix(filepath.Base(path), ".jsonl")

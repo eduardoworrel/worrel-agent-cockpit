@@ -1,10 +1,14 @@
 package retro
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/claudecode"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
 
@@ -65,6 +69,43 @@ func TestInventoryNoLLMAndWindow(t *testing.T) {
 	win, _ := inv.Scan(time.Now().Add(-60 * 24 * time.Hour))
 	if win.PerCLI["claude-code"].Sessions != 2 {
 		t.Fatalf("janela 60d = %d, want 2", win.PerCLI["claude-code"].Sessions)
+	}
+}
+
+// TestInventorySkipsMetaSessions: o inventário conta o MESMO conjunto que o
+// importador. Com 1 meta-sessão do worrel + 2 reais num diretório fake do Claude
+// Code, o inventário conta 2 (não 3), pois a meta-sessão é filtrada na descoberta.
+func TestInventorySkipsMetaSessions(t *testing.T) {
+	s := newStore(t)
+	root := t.TempDir()
+	writeCCSession(t, root, "-tmp-meta", "meta-1", "Você é um destilador de conhecimento. Resuma.")
+	writeCCSession(t, root, "-tmp-r1", "real-1", "como faço deploy?")
+	writeCCSession(t, root, "-tmp-r2", "real-2", "corrija este bug")
+
+	obs := &claudecode.Adapter{ProjectsRoot: root}
+	inv := NewInventory(s, []Observer{obs})
+	r, err := inv.Scan(time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.PerCLI["claude-code"].Sessions != 2 {
+		t.Fatalf("sessions = %d, want 2 (meta descartada)", r.PerCLI["claude-code"].Sessions)
+	}
+	if r.EstimatedInvocations != 2 {
+		t.Fatalf("estimativa = %d, want 2", r.EstimatedInvocations)
+	}
+}
+
+func writeCCSession(t *testing.T, root, dirEnc, sessID, firstUser string) {
+	t.Helper()
+	d := filepath.Join(root, dirEnc)
+	if err := os.MkdirAll(d, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(firstUser)
+	line := `{"type":"user","sessionId":"` + sessID + `","cwd":"/tmp/p","timestamp":"2026-06-12T10:00:00Z","message":{"role":"user","content":` + string(b) + `}}`
+	if err := os.WriteFile(filepath.Join(d, sessID+".jsonl"), []byte(line), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

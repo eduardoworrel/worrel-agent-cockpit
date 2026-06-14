@@ -50,43 +50,63 @@ export default function RetroBatchReview({ runId }: Props) {
   }
 
   if (groups.length === 0) {
-    return <p className="muted">{t('retro.batch.empty')}</p>;
+    return (
+      <section className="retro-card">
+        <div className="retro-empty-inline">
+          <p className="muted">{t('retro.batch.empty')}</p>
+        </div>
+      </section>
+    );
   }
 
   return (
     <div className="retro-batch">
-      <h3>{t('retro.batch.title')}</h3>
-      {groups.map((pg) => (
-        <div key={pg.project_id} className="retro-batch-project">
-          <h4>{t('retro.batch.project')}: {pg.project_id}</h4>
-          {pg.groups.map((tg) => (
-            <div key={tg.type} className="retro-batch-type">
-              <div className="retro-batch-type-header">
-                <strong>{tg.type}</strong> <span className="muted">({tg.items.length})</span>
-                <div className="retro-batch-actions">
-                  <button className="btn btn-primary" disabled={busy} onClick={() => bulk(pg.project_id, tg.type, 'accepted')}>
-                    {t('retro.batch.acceptAll')}
-                  </button>
-                  <button className="btn btn-danger" disabled={busy} onClick={() => bulk(pg.project_id, tg.type, 'rejected')}>
-                    {t('retro.batch.rejectAll')}
-                  </button>
-                </div>
-              </div>
-              <ul>
-                {tg.items.map((it) => (
-                  <li key={it.id}>
-                    <span className="retro-item-title">{it.title}</span>
-                    {occurrences(it) > 1 && (
-                      <span className="badge" title={t('retro.batch.occurrences')}>×{occurrences(it)}</span>
-                    )}
-                    <div className="retro-item-evidence">{displayEvidence(it)}</div>
-                  </li>
-                ))}
-              </ul>
+      <header className="retro-card-head retro-batch-head">
+        <h3>{t('retro.batch.title')}</h3>
+        <p className="muted">{t('retro.batch.subtitle')}</p>
+      </header>
+
+      {groups.map((pg) => {
+        const total = pg.groups.reduce((acc, g) => acc + g.items.length, 0);
+        return (
+          <div key={pg.project_id} className="retro-batch-project">
+            <div className="retro-batch-project-head">
+              <h4>{pg.project_id}</h4>
+              <span className="pill">{t('retro.batch.suggestionsTotal', { n: total })}</span>
             </div>
-          ))}
-        </div>
-      ))}
+
+            {pg.groups.map((tg) => (
+              <div key={tg.type} className="retro-batch-type">
+                <div className="retro-batch-type-header">
+                  <span className="pill" data-type={tg.type}>{tg.type}</span>
+                  <span className="muted retro-batch-count">{t('retro.batch.items', { n: tg.items.length })}</span>
+                  <div className="retro-batch-actions">
+                    <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => bulk(pg.project_id, tg.type, 'accepted')}>
+                      {t('retro.batch.acceptAll')}
+                    </button>
+                    <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => bulk(pg.project_id, tg.type, 'rejected')}>
+                      {t('retro.batch.rejectAll')}
+                    </button>
+                  </div>
+                </div>
+                <ul className="retro-batch-items">
+                  {tg.items.map((it) => (
+                    <li key={it.id}>
+                      <div className="retro-item-row">
+                        <span className="retro-item-title">{it.title}</span>
+                        {occurrences(it) > 1 && (
+                          <span className="badge" title={t('retro.batch.occurrences')}>×{occurrences(it)}</span>
+                        )}
+                      </div>
+                      {it.evidence && <div className="retro-item-evidence">{displayEvidence(it)}</div>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
