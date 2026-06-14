@@ -57,7 +57,7 @@ export default function RetroWizard() {
   const { t } = useTranslation();
   const [report, setReport] = useState<InventoryReport | null>(null);
   const [loadingInventory, setLoadingInventory] = useState(true);
-  const [windowDays, setWindowDays] = useState(60);
+  const [windowDays, setWindowDays] = useState(0); // "Tudo" por padrão — bate com o Dashboard
   const [depth, setDepth] = useState<'completa' | 'leve'>('completa');
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
