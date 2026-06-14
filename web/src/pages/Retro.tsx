@@ -13,7 +13,7 @@ export default function Retro() {
 
   return (
     <div className="main retro-page">
-      <div className="page-head"><div><h1>{t('retro.title')}</h1></div></div>
+      <div className="page-head"><div><h1>{t('retro.title')}</h1><p className="sub">{t('retro.firstUse')}</p></div></div>
       <RetroWizard />
 
       <section className="retro-history" style={{ marginTop: 32 }}>

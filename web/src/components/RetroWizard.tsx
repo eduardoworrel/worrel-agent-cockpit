@@ -4,21 +4,66 @@ import { useEvents } from '../useEvents';
 import type { WsEvent } from '../useEvents';
 import {
   inventory, createRun, cluster, listClusters, approveCluster, discardCluster,
-  mergeClusters, startRun, pauseRun, resumeRun, cancelRun, getRun,
+  mergeClusters, startRun, pauseRun, resumeRun, cancelRun, getRun, listAdapterModels,
   type InventoryReport, type RetroRun, type RetroCluster, type Scope,
   type RetroRunProgress,
 } from '../retroApi';
 import RetroBatchReview from './RetroBatchReview';
 
 const WINDOW_PRESETS = [30, 60, 90, 0]; // 0 = tudo
+const PROVIDERS = ['', 'claude-code', 'opencode', 'gemini', 'codex', 'pidev'];
+
+type StageKey = 'inventory' | 'scope' | 'map' | 'execution' | 'review';
+const STAGE_ORDER: StageKey[] = ['inventory', 'scope', 'map', 'execution', 'review'];
+
+function stageFromStatus(run: RetroRun | null): StageKey {
+  if (!run) return 'scope';
+  switch (run.status) {
+    case 'scoped':
+    case 'clustering':
+    case 'clustered':
+      return 'map';
+    case 'running':
+    case 'paused':
+      return 'execution';
+    case 'done':
+      return 'review';
+    default:
+      return 'scope';
+  }
+}
+
+function Stepper({ active }: { active: StageKey }) {
+  const { t } = useTranslation();
+  const activeIdx = STAGE_ORDER.indexOf(active);
+  return (
+    <ol className="retro-stepper" aria-label={t('retro.title')}>
+      {STAGE_ORDER.map((s, i) => {
+        const state = i < activeIdx ? 'done' : i === activeIdx ? 'current' : 'todo';
+        return (
+          <li key={s} className={`retro-step ${state}`} aria-current={state === 'current' ? 'step' : undefined}>
+            <span className="retro-step-dot" aria-hidden="true">
+              {state === 'done' ? '✓' : i + 1}
+            </span>
+            <span className="retro-step-label">{t(`retro.wizard.steps.${s}`)}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export default function RetroWizard() {
   const { t } = useTranslation();
   const [report, setReport] = useState<InventoryReport | null>(null);
+  const [loadingInventory, setLoadingInventory] = useState(true);
   const [windowDays, setWindowDays] = useState(60);
   const [depth, setDepth] = useState<'completa' | 'leve'>('completa');
-  const [provider, setProvider] = useState<'' | 'claude-code' | 'opencode'>('');
+  const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelFreeText, setModelFreeText] = useState(false);
   const [budgetPerHour, setBudgetPerHour] = useState(0);
   const [run, setRun] = useState<RetroRun | null>(null);
   const [clusters, setClusters] = useState<RetroCluster[]>([]);
@@ -28,16 +73,39 @@ export default function RetroWizard() {
   const [progress, setProgress] = useState<RetroRunProgress | null>(null);
 
   const refreshInventory = useCallback(async () => {
+    setLoadingInventory(true);
     try {
       setReport(await inventory(windowDays));
     } catch (e) {
       setErr(String(e));
+    } finally {
+      setLoadingInventory(false);
     }
   }, [windowDays]);
 
   useEffect(() => {
     refreshInventory();
   }, [refreshInventory]);
+
+  // Busca modelos do provider; degrada para texto livre se vazio/404.
+  useEffect(() => {
+    let cancelled = false;
+    setModel('');
+    setModelFreeText(false);
+    if (!provider) {
+      setModels([]);
+      return;
+    }
+    setModelsLoading(true);
+    listAdapterModels(provider)
+      .then((ms) => {
+        if (cancelled) return;
+        setModels(ms);
+        setModelFreeText(ms.length === 0);
+      })
+      .finally(() => !cancelled && setModelsLoading(false));
+    return () => { cancelled = true; };
+  }, [provider]);
 
   // progresso ao vivo via WS
   const onEvent = useCallback((ev: WsEvent) => {
@@ -107,105 +175,276 @@ export default function RetroWizard() {
   }
 
   const status = run?.status ?? 'inventoried';
+  const stage = stageFromStatus(run);
+
+  const cliEntries = Object.entries(report?.per_cli ?? {});
 
   return (
     <div className="retro-wizard">
-      {err && <div className="error-banner">{err}</div>}
+      <Stepper active={stage} />
+
+      {err && <div className="error-banner" role="alert">{err}</div>}
 
       {/* Estágio 0/1: inventário + escopo */}
       {!run && (
-        <section>
-          <h3>{t('retro.wizard.scopeTitle')}</h3>
-          {report && (
-            <ul className="retro-inventory">
-              {Object.entries(report.per_cli).map(([cli, ci]) => (
-                <li key={cli}>{cli}: {ci.sessions} {t('retro.wizard.sessions')} ({ci.already_known} {t('retro.wizard.known')})</li>
+        <section className="retro-card">
+          <header className="retro-card-head">
+            <h3>{t('retro.wizard.scopeTitle')}</h3>
+            <p className="muted">{t('retro.wizard.scopeSubtitle')}</p>
+          </header>
+
+          {/* Inventário */}
+          <div className="retro-field">
+            <span className="retro-field-label">{t('retro.wizard.inventoryTitle')}</span>
+            {loadingInventory ? (
+              <div className="retro-inventory-panel muted">
+                <span className="pulse">{t('retro.wizard.inventoryLoading')}</span>
+              </div>
+            ) : cliEntries.length === 0 ? (
+              <div className="retro-inventory-panel muted">{t('retro.wizard.inventoryEmpty')}</div>
+            ) : (
+              <div className="retro-inventory-panel">
+                <ul className="retro-inventory">
+                  {cliEntries.map(([cli, ci]) => (
+                    <li key={cli}>
+                      <span className="retro-inv-cli mono">{cli}</span>
+                      <span className="retro-inv-meta">
+                        {ci.sessions} {t('retro.wizard.sessions')}
+                        <span className="faint"> · {ci.already_known} {t('retro.wizard.known')}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {report && (
+                  <div className="retro-estimate">
+                    <span className="muted">{t('retro.wizard.estimate')}</span>
+                    <strong className="mono">{report.estimated_invocations}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Janela: segmented control */}
+          <div className="retro-field">
+            <span className="retro-field-label">{t('retro.wizard.window')}</span>
+            <div className="retro-segmented" role="group" aria-label={t('retro.wizard.window')}>
+              {WINDOW_PRESETS.map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  className={`retro-seg ${windowDays === w ? 'active' : ''}`}
+                  aria-pressed={windowDays === w}
+                  onClick={() => setWindowDays(w)}
+                >
+                  {w === 0 ? t('retro.wizard.all') : `${w}d`}
+                </button>
               ))}
-              <li><strong>{t('retro.wizard.estimate')}: {report.estimated_invocations}</strong></li>
-            </ul>
-          )}
-          <label>{t('retro.wizard.window')}: </label>
-          {WINDOW_PRESETS.map((w) => (
-            <button key={w} className={`btn ${windowDays === w ? 'btn-primary' : 'btn-secondary'}`} style={{ marginRight: '0.25rem' }} onClick={() => setWindowDays(w)}>
-              {w === 0 ? t('retro.wizard.all') : `${w}d`}
-            </button>
-          ))}
-          <div>
-            <label>{t('retro.wizard.depth')}: </label>
-            <select value={depth} onChange={(e) => setDepth(e.target.value as 'completa' | 'leve')}>
-              <option value="completa">{t('retro.wizard.depthFull')}</option>
-              <option value="leve">{t('retro.wizard.depthLight')}</option>
-            </select>
+            </div>
           </div>
-          <div>
-            <label>{t('retro.wizard.provider')}: </label>
-            <select value={provider} onChange={(e) => setProvider(e.target.value as '' | 'claude-code' | 'opencode')}>
-              <option value="">{t('retro.wizard.providerDefault')}</option>
-              <option value="claude-code">claude-code</option>
-              <option value="opencode">opencode</option>
-              <option value="gemini">gemini</option>
-              <option value="codex">codex</option>
-              <option value="pidev">pi</option>
-            </select>
+
+          {/* Profundidade */}
+          <div className="retro-field">
+            <span className="retro-field-label">{t('retro.wizard.depth')}</span>
+            <div className="retro-segmented" role="group" aria-label={t('retro.wizard.depth')}>
+              <button
+                type="button"
+                className={`retro-seg ${depth === 'completa' ? 'active' : ''}`}
+                aria-pressed={depth === 'completa'}
+                onClick={() => setDepth('completa')}
+              >
+                {t('retro.wizard.depthFull')}
+              </button>
+              <button
+                type="button"
+                className={`retro-seg ${depth === 'leve' ? 'active' : ''}`}
+                aria-pressed={depth === 'leve'}
+                onClick={() => setDepth('leve')}
+              >
+                {t('retro.wizard.depthLight')}
+              </button>
+            </div>
+            <span className="retro-field-hint">{t('retro.wizard.depthHint')}</span>
           </div>
-          <div>
-            <label>{t('retro.wizard.model')}: </label>
+
+          {/* Provider + modelo */}
+          <div className="retro-grid-2">
+            <div className="retro-field">
+              <label htmlFor="retro-provider">{t('retro.wizard.provider')}</label>
+              <select id="retro-provider" value={provider} onChange={(e) => setProvider(e.target.value)}>
+                {PROVIDERS.map((p) => (
+                  <option key={p || 'default'} value={p}>
+                    {p === '' ? t('retro.wizard.providerDefault') : p === 'pidev' ? 'pi' : p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="retro-field">
+              <label htmlFor="retro-model">
+                {t('retro.wizard.model')} <span className="faint">({t('retro.wizard.modelOptional')})</span>
+              </label>
+              {modelsLoading ? (
+                <div className="retro-inline-loading muted pulse">{t('retro.wizard.modelLoading')}</div>
+              ) : models.length > 0 && !modelFreeText ? (
+                <select
+                  id="retro-model"
+                  value={model}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setModelFreeText(true);
+                      setModel('');
+                    } else {
+                      setModel(e.target.value);
+                    }
+                  }}
+                >
+                  <option value="">{t('retro.wizard.modelSelectPlaceholder')}</option>
+                  {models.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                  <option value="__custom__">{t('retro.wizard.modelCustom')}</option>
+                </select>
+              ) : (
+                <>
+                  <input
+                    id="retro-model"
+                    type="text"
+                    value={model}
+                    placeholder={provider === 'opencode' ? 'anthropic/claude-sonnet-4-6' : 'claude-sonnet-4-6'}
+                    onChange={(e) => setModel(e.target.value)}
+                  />
+                  <span className="retro-field-hint">{t('retro.wizard.modelFreeHint')}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Orçamento */}
+          <div className="retro-field">
+            <label htmlFor="retro-budget">{t('retro.wizard.budgetPerHour')}</label>
             <input
-              type="text"
-              value={model}
-              placeholder={provider === 'opencode' ? 'anthropic/claude-sonnet-4-6' : 'claude-sonnet-4-6'}
-              onChange={(e) => setModel(e.target.value)}
+              id="retro-budget"
+              type="number"
+              min={0}
+              value={budgetPerHour}
+              onChange={(e) => setBudgetPerHour(Number(e.target.value))}
             />
+            <span className="retro-field-hint">{t('retro.wizard.budgetPerHourHint')}</span>
           </div>
-          <div>
-            <label>{t('retro.wizard.budgetPerHour')}: </label>
-            <input type="number" min={0} value={budgetPerHour} onChange={(e) => setBudgetPerHour(Number(e.target.value))} />
+
+          <div className="retro-card-foot">
+            <button className="btn btn-accent" onClick={openRun} disabled={cliEntries.length === 0}>
+              {t('retro.wizard.openRun')} →
+            </button>
           </div>
-          <button className="btn btn-primary" onClick={openRun}>{t('retro.wizard.openRun')}</button>
         </section>
       )}
 
       {/* Estágio 2: mapa de projetos */}
       {run && (status === 'scoped' || status === 'clustering' || status === 'clustered') && (
-        <section>
-          <h3>{t('retro.wizard.mapTitle')}</h3>
-          {clusters.length === 0 && (
-            <button className="btn btn-secondary" onClick={proposeClusters} disabled={clustering || status === 'clustering'}>
-              {clustering || status === 'clustering' ? t('retro.wizard.clustering') : t('retro.wizard.propose')}
-            </button>
+        <section className="retro-card">
+          <header className="retro-card-head">
+            <h3>{t('retro.wizard.mapTitle')}</h3>
+            <p className="muted">{t('retro.wizard.mapSubtitle')}</p>
+          </header>
+
+          {clusters.length === 0 && !(clustering || status === 'clustering') && (
+            <div className="retro-empty-inline">
+              <p className="muted">{t('retro.wizard.mapEmpty')}</p>
+              <button className="btn btn-accent" onClick={proposeClusters}>
+                {t('retro.wizard.propose')}
+              </button>
+            </div>
           )}
+
           {(clustering || status === 'clustering') && (
-            <p className="muted pulse">{t('retro.wizard.clusteringHint')}</p>
+            <div className="retro-empty-inline">
+              <p className="muted pulse">{t('retro.wizard.clusteringHint')}</p>
+            </div>
           )}
-          <ul className="retro-clusters">
-            {clusters.map((c) => (
-              <li key={c.id} className={c.decision !== 'pending' ? 'resolved' : ''}>
-                <input type="checkbox" checked={selected.includes(c.id)} onChange={(e) =>
-                  setSelected((s) => e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id))} />
-                <strong>{c.name}</strong>
-                {c.existing_project_id && <span className="badge">{t('retro.wizard.associated')}</span>}
-                <span className="muted"> {c.decision}</span>
-                <button className="btn btn-primary" onClick={() => approve(c.id)}>{t('retro.wizard.approve')}</button>
-                <button className="btn btn-danger" onClick={() => discard(c.id)}>{t('retro.wizard.discard')}</button>
-              </li>
-            ))}
-          </ul>
-          {selected.length >= 2 && <button className="btn btn-secondary" onClick={doMerge}>{t('retro.wizard.merge')}</button>}
-          {clusters.length > 0 && <button className="btn btn-primary" onClick={execute}>{t('retro.wizard.execute')}</button>}
+
+          {clusters.length > 0 && (
+            <>
+              <ul className="retro-clusters">
+                {clusters.map((c) => {
+                  const sids = (c.session_ids || '').split(',').filter(Boolean).length;
+                  const resolved = c.decision !== 'pending';
+                  const decisionKey =
+                    c.decision === 'approved' ? 'decisionApproved'
+                    : c.decision === 'discarded' ? 'decisionDiscarded'
+                    : 'decisionPending';
+                  return (
+                    <li key={c.id} className={`retro-cluster ${resolved ? 'resolved' : ''}`}>
+                      <label className="retro-cluster-check">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(c.id)}
+                          disabled={resolved}
+                          aria-label={c.name}
+                          onChange={(e) =>
+                            setSelected((s) => (e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id)))
+                          }
+                        />
+                      </label>
+                      <div className="retro-cluster-body">
+                        <div className="retro-cluster-head">
+                          <strong className="retro-cluster-name">{c.name}</strong>
+                          {c.existing_project_id && <span className="pill green">{t('retro.wizard.associated')}</span>}
+                          <span className={`pill retro-decision-${c.decision}`}>{t(`retro.wizard.${decisionKey}`)}</span>
+                        </div>
+                        {c.description && <p className="retro-cluster-desc muted">{c.description}</p>}
+                        <span className="retro-cluster-meta faint">{t('retro.wizard.clusterSessions', { n: sids })}</span>
+                      </div>
+                      {!resolved && (
+                        <div className="retro-cluster-actions">
+                          <button className="btn btn-secondary btn-sm" onClick={() => approve(c.id)}>{t('retro.wizard.approve')}</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => discard(c.id)}>{t('retro.wizard.discard')}</button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="retro-card-foot retro-card-foot-split">
+                <button className="btn btn-secondary" onClick={doMerge} disabled={selected.length < 2}>
+                  {selected.length < 2 ? t('retro.wizard.selectToMerge') : t('retro.wizard.merge', { n: selected.length })}
+                </button>
+                <button className="btn btn-accent" onClick={execute}>{t('retro.wizard.execute')} →</button>
+              </div>
+            </>
+          )}
         </section>
       )}
 
       {/* Estágio 3: execução */}
       {run && (status === 'running' || status === 'paused') && (
-        <section>
-          <h3>{t('retro.wizard.runningTitle')}</h3>
-          <p>{t('retro.wizard.status')}: {status}</p>
+        <section className="retro-card">
+          <header className="retro-card-head">
+            <h3>{t('retro.wizard.runningTitle')}</h3>
+            <p className="muted">{t('retro.wizard.runningSubtitle')}</p>
+          </header>
+
+          <div className="retro-run-status">
+            <span className={`pill ${status === 'running' ? 'sky' : 'amber'}`}>
+              {status === 'running' ? t('retro.wizard.statusRunning') : t('retro.wizard.statusPaused')}
+            </span>
+            {progress?.project_id && (
+              <span className="retro-run-meta">
+                {t('retro.wizard.currentProject')}: <strong className="mono">{progress.project_id}</strong>
+              </span>
+            )}
+            {typeof progress?.batch === 'number' && (
+              <span className="retro-run-meta faint">{t('retro.wizard.batchLabel')} {progress.batch}</span>
+            )}
+          </div>
+
           {(() => {
             const total = progress?.total ?? 0;
             const doneN = progress?.done ?? 0;
             const pct = total > 0 ? Math.round((doneN / total) * 100) : 0;
             return (
-              <div className="inv-progress">
+              <div className="inv-progress retro-progress">
                 <div className="inv-progress-label">
                   <span>{t('retro.wizard.progressLabel')}</span>
                   {total > 0 && <span className="mono">{doneN}/{total} · {pct}%</span>}
@@ -223,17 +462,38 @@ export default function RetroWizard() {
               </div>
             );
           })()}
-          <p>
-            {t('retro.wizard.sessionsDone')}: {progress?.done ?? 0}/{progress?.total ?? '?'}
-          </p>
-          <p>
-            {t('retro.wizard.budgetUsage')}: {run.llm_calls}
-            {run.budget_total > 0 && <> / {run.budget_total}</>} {t('retro.wizard.llmCalls')}
-            {run.budget_per_hour > 0 && <> · {t('retro.wizard.perHourCap', { n: run.budget_per_hour })}</>}
-          </p>
-          {status === 'running' && <button className="btn btn-secondary" onClick={() => pauseRun(run.id).then(() => getRun(run.id)).then(setRun)}>{t('retro.wizard.pause')}</button>}
-          {status === 'paused' && <button className="btn btn-secondary" onClick={() => resumeRun(run.id).then(() => getRun(run.id)).then(setRun)}>{t('retro.wizard.resume')}</button>}
-          <button className="btn btn-danger" onClick={() => cancelRun(run.id).then(() => getRun(run.id)).then(setRun)}>{t('retro.wizard.cancel')}</button>
+
+          <dl className="retro-run-stats">
+            <div>
+              <dt>{t('retro.wizard.sessionsDone')}</dt>
+              <dd className="mono">{progress?.done ?? 0}/{progress?.total ?? '?'}</dd>
+            </div>
+            <div>
+              <dt>{t('retro.wizard.budgetUsage')}</dt>
+              <dd className="mono">
+                {run.llm_calls}{run.budget_total > 0 && <> / {run.budget_total}</>} {t('retro.wizard.llmCalls')}
+                {run.budget_per_hour > 0 && <span className="faint"> · {t('retro.wizard.perHourCap', { n: run.budget_per_hour })}</span>}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="retro-card-foot retro-card-foot-split">
+            <div className="retro-run-controls">
+              {status === 'running' && (
+                <button className="btn btn-secondary" onClick={() => pauseRun(run.id).then(() => getRun(run.id)).then(setRun)}>
+                  {t('retro.wizard.pause')}
+                </button>
+              )}
+              {status === 'paused' && (
+                <button className="btn btn-accent" onClick={() => resumeRun(run.id).then(() => getRun(run.id)).then(setRun)}>
+                  {t('retro.wizard.resume')}
+                </button>
+              )}
+            </div>
+            <button className="btn btn-danger" onClick={() => cancelRun(run.id).then(() => getRun(run.id)).then(setRun)}>
+              {t('retro.wizard.cancel')}
+            </button>
+          </div>
         </section>
       )}
 
