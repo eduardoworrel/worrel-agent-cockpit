@@ -480,39 +480,178 @@ tr:last-child td { border-bottom: none; }
    Retro / linhagem (refinado adiante)
    ============================================================ */
 
-.retro-wizard section { margin-bottom: 24px; }
-.retro-wizard label { color: var(--muted); font-weight: 500; }
+.retro-wizard { display: flex; flex-direction: column; gap: 20px; }
 
-.retro-inventory, .retro-clusters { list-style: none; padding: 0; margin: 8px 0; }
+/* ── Stepper de estágios ─────────────────────────────────── */
+.retro-stepper {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; align-items: center; gap: 4px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.retro-stepper::-webkit-scrollbar { display: none; }
+.retro-step {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 0; min-width: 0; position: relative;
+}
+.retro-step:not(:last-child)::after {
+  content: ""; flex: 1; height: 2px; min-width: 16px;
+  background: var(--line); border-radius: var(--r-pill);
+  margin-left: 4px;
+}
+.retro-step.done:not(:last-child)::after { background: var(--orange); }
+.retro-step-dot {
+  flex: none; width: 26px; height: 26px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; font-weight: 700; font-family: var(--mono);
+  background: var(--surface); border: 1.5px solid var(--line-strong); color: var(--faint);
+  transition: background .15s, border-color .15s, color .15s;
+}
+.retro-step-label {
+  font-size: 0.82rem; font-weight: 600; color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.retro-step.done .retro-step-dot { background: var(--orange); border-color: var(--orange); color: #fff; }
+.retro-step.done .retro-step-label { color: var(--ink-soft); }
+.retro-step.current .retro-step-dot { background: var(--ink); border-color: var(--ink); color: #fff; box-shadow: var(--ring); }
+.retro-step.current .retro-step-label { color: var(--ink); }
 
-.retro-inventory li, .retro-clusters li {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+/* ── Card de estágio ─────────────────────────────────────── */
+.retro-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; gap: 20px;
+}
+.retro-card-head { display: flex; flex-direction: column; gap: 4px; }
+.retro-card-head h3 { font-size: 1.15rem; }
+.retro-card-head .muted { font-size: 0.875rem; }
+.retro-card-foot { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.retro-card-foot-split { justify-content: space-between; }
+
+.retro-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.retro-field-label { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
+.retro-field-hint { font-size: 0.76rem; color: var(--faint); }
+.retro-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.retro-inline-loading { font-size: 0.85rem; padding: 9px 0; }
+
+/* ── Inventário ──────────────────────────────────────────── */
+.retro-inventory-panel {
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+}
+.retro-inventory { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.retro-inventory li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 6px 0; flex-wrap: wrap;
+}
+.retro-inv-cli { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+.retro-inv-meta { font-size: 0.82rem; color: var(--ink-soft); }
+.retro-estimate {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin-top: 10px; padding-top: 12px; border-top: 1px dashed var(--line-strong);
+}
+.retro-estimate strong { font-size: 1.05rem; color: var(--orange-ink); }
+
+/* ── Segmented control ───────────────────────────────────── */
+.retro-segmented {
+  display: inline-flex; flex-wrap: wrap; gap: 4px;
+  background: var(--surface-sunk); border: 1px solid var(--line);
+  border-radius: var(--r-pill); padding: 3px;
+}
+.retro-seg {
+  border: none; background: transparent; cursor: pointer;
+  padding: 7px 16px; border-radius: var(--r-pill);
+  font-family: var(--sans); font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.retro-seg:hover { color: var(--ink); }
+.retro-seg.active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+.retro-seg:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* ── Estado vazio inline ─────────────────────────────────── */
+.retro-empty-inline {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center; padding: 28px 16px;
 }
 
-.retro-clusters li.resolved { opacity: 0.5; }
+/* ── Clusters / mapa ─────────────────────────────────────── */
+.retro-clusters { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.retro-cluster {
+  display: flex; align-items: flex-start; gap: 12px;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 14px 16px; background: var(--surface);
+  transition: border-color .15s, box-shadow .15s, opacity .15s;
+}
+.retro-cluster:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.retro-cluster.resolved { opacity: 0.55; }
+.retro-cluster-check { flex: none; margin: 0; }
+.retro-cluster-check input { width: auto; }
+.retro-cluster-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.retro-cluster-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.retro-cluster-name { font-size: 0.95rem; color: var(--ink); min-width: 0; word-break: break-word; }
+.retro-cluster-desc { font-size: 0.83rem; margin: 0; }
+.retro-cluster-meta { font-size: 0.76rem; }
+.retro-cluster-actions { flex: none; display: flex; gap: 6px; align-self: center; }
+.pill.retro-decision-approved { background: var(--fill-green); color: #146b3a; border-color: transparent; }
+.pill.retro-decision-discarded { background: var(--fill-pink); color: #a01464; border-color: transparent; }
 
-.retro-batch { margin-top: 16px; }
+/* ── Execução ────────────────────────────────────────────── */
+.retro-run-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.retro-run-meta { font-size: 0.85rem; color: var(--ink-soft); min-width: 0; }
+.retro-progress { margin-top: 0; max-width: none; }
+.retro-run-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px; margin: 0;
+}
+.retro-run-stats > div {
+  background: var(--surface-sunk); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 12px 14px; min-width: 0;
+}
+.retro-run-stats dt { font-size: 0.74rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin-bottom: 4px; }
+.retro-run-stats dd { margin: 0; font-size: 0.95rem; color: var(--ink); word-break: break-word; }
+.retro-run-controls { display: flex; gap: 10px; }
 
+/* ── Revisão em lote ─────────────────────────────────────── */
+.retro-batch { display: flex; flex-direction: column; gap: 16px; }
+.retro-batch-head { gap: 4px; }
 .retro-batch-project {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  padding: 18px;
-  margin-bottom: 16px;
+  padding: 20px;
   box-shadow: var(--shadow-sm);
 }
-
-.retro-batch-type { margin-bottom: 16px; }
-.retro-batch-type-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.retro-batch-project-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.retro-batch-project-head h4 { font-size: 1.02rem; min-width: 0; word-break: break-word; }
+.retro-batch-type { margin-bottom: 18px; }
+.retro-batch-type:last-child { margin-bottom: 0; }
+.retro-batch-type-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.retro-batch-count { font-size: 0.8rem; }
 .retro-batch-actions { display: flex; gap: 8px; margin-left: auto; }
-.retro-batch ul { list-style: none; padding: 0; margin: 0; }
-.retro-batch li { padding: 10px 0; border-bottom: 1px solid var(--line); }
-.retro-item-evidence { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+.retro-batch-items { list-style: none; padding: 0; margin: 0; }
+.retro-batch-items li { padding: 10px 12px; border-radius: var(--r-sm); transition: background .12s; }
+.retro-batch-items li:hover { background: var(--surface-warm); }
+.retro-batch-items li:not(:last-child) { border-bottom: 1px solid var(--line); }
+.retro-item-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.retro-item-title { font-size: 0.88rem; color: var(--ink); font-weight: 500; min-width: 0; word-break: break-word; }
+.retro-item-evidence { font-size: 0.8rem; color: var(--muted); margin-top: 4px; word-break: break-word; }
+
+@media (max-width: 640px) {
+  .retro-grid-2 { grid-template-columns: 1fr; }
+  .retro-card { padding: 18px; }
+  .retro-step-label { display: none; }
+  .retro-step.current .retro-step-label { display: inline; }
+  .retro-cluster { flex-wrap: wrap; }
+  .retro-cluster-actions { width: 100%; justify-content: flex-end; }
+  .retro-batch-actions { margin-left: 0; }
+}
 
 .lineage .card.active-generation {
   border-color: var(--orange);
