@@ -108,6 +108,32 @@ func TestCreateSessionSpawnsAndKill(t *testing.T) {
 	}
 }
 
+// TestKillOrphanSessionEndsIt: sessão wrapper "órfã" (active no banco, sem PTY
+// vivo — caso pós-restart do servidor). O × deve encerrá-la mesmo assim (204),
+// senão Wrapper.Kill falhava com 404 e a sessão seguia na faixa de ativas.
+func TestKillOrphanSessionEndsIt(t *testing.T) {
+	ts, st, _ := newSessionsServer(t)
+	sess, err := st.CreateSession(&store.Session{Adapter: "fake", Mode: "wrapper", Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// nenhum PTY foi spawnado para esta sessão (órfã)
+	kr, _ := ts.Client().Post(ts.URL+"/api/sessions/"+sess.ID+"/kill", "application/json", nil)
+	if kr.StatusCode != 204 {
+		t.Fatalf("kill de sessão órfã = %d, want 204", kr.StatusCode)
+	}
+	active, _ := st.ListActiveWrapperSessions()
+	for _, a := range active {
+		if a.ID == sess.ID {
+			t.Fatal("sessão órfã ainda aparece como ativa após kill")
+		}
+	}
+	got, _ := st.GetSession(sess.ID)
+	if got.Status != "ended" {
+		t.Fatalf("status após kill = %q, want ended", got.Status)
+	}
+}
+
 func TestWSOriginCheck(t *testing.T) {
 	ts, st, _ := newSessionsServer(t)
 	p, _ := st.CreateProject("App", "")
