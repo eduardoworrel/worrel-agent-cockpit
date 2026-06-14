@@ -77,7 +77,11 @@ func (in *Inventory) ScanProgress(since time.Time, emit func(cli string, done, t
 			}
 			if in.known(es.ExternalRef) {
 				ci.AlreadyKnown++
-			} else {
+			}
+			// Estimativa = sessões que o run AINDA vai processar = não analisadas
+			// (analyzed_at NULL), importadas ou não. Antes contava só "não
+			// importadas", então zerava assim que o import rodava (bug "sempre 0").
+			if !in.analyzed(es.ExternalRef) {
 				rep.EstimatedInvocations++
 			}
 			if es.Dir != "" {
@@ -101,5 +105,15 @@ func (in *Inventory) ScanProgress(since time.Time, emit func(cli string, done, t
 func (in *Inventory) known(externalRef string) bool {
 	var n int
 	_ = in.store.DB().QueryRow(`SELECT count(*) FROM sessions WHERE external_ref=?`, externalRef).Scan(&n)
+	return n > 0
+}
+
+// analyzed reporta se a sessão já foi DESTILADA (analyzed_at preenchido). Base
+// da estimativa: o run só processa sessões ainda não analisadas.
+func (in *Inventory) analyzed(externalRef string) bool {
+	var n int
+	_ = in.store.DB().QueryRow(
+		`SELECT count(*) FROM sessions WHERE external_ref=? AND analyzed_at IS NOT NULL`,
+		externalRef).Scan(&n)
 	return n > 0
 }
