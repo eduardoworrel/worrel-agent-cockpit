@@ -122,7 +122,15 @@ func TestInventoryMarksKnown(t *testing.T) {
 	if r.PerCLI["claude-code"].AlreadyKnown != 1 {
 		t.Fatalf("known = %d, want 1", r.PerCLI["claude-code"].AlreadyKnown)
 	}
-	if r.EstimatedInvocations != 1 {
-		t.Fatalf("estimativa escopo padrão = %d, want 1", r.EstimatedInvocations)
+	// "a" está importada mas NÃO analisada (analyzed_at NULL) e "b" nem importada:
+	// ambas serão processadas pelo run → estimativa = 2 (semântica "não analisadas").
+	if r.EstimatedInvocations != 2 {
+		t.Fatalf("estimativa = %d, want 2 (não-analisadas)", r.EstimatedInvocations)
+	}
+	// Ao marcar "a" como analisada, ela sai da estimativa → 1.
+	_, _ = s.DB().Exec(`UPDATE sessions SET analyzed_at=? WHERE external_ref=?`, 1, "a")
+	r2, _ := inv.Scan(time.Time{})
+	if r2.EstimatedInvocations != 1 {
+		t.Fatalf("estimativa após analisar 'a' = %d, want 1", r2.EstimatedInvocations)
 	}
 }
