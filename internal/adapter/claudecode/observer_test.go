@@ -49,6 +49,61 @@ func TestDiscoverSessions(t *testing.T) {
 	}
 }
 
+// writeSession grava um jsonl com um único 1º prompt de usuário arbitrário.
+func writeSession(t *testing.T, root, dirEnc, sessID, firstUser string) {
+	t.Helper()
+	d := filepath.Join(root, dirEnc)
+	if err := os.MkdirAll(d, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	line := `{"type":"user","sessionId":"` + sessID + `","cwd":"/tmp/p","timestamp":"2026-06-12T10:00:00Z","message":{"role":"user","content":` + jsonStr(firstUser) + `}}`
+	if err := os.WriteFile(filepath.Join(d, sessID+".jsonl"), []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func jsonStr(s string) string {
+	b := []byte{'"'}
+	for _, r := range s {
+		switch r {
+		case '"':
+			b = append(b, '\\', '"')
+		case '\\':
+			b = append(b, '\\', '\\')
+		case '\n':
+			b = append(b, '\\', 'n')
+		default:
+			b = append(b, string(r)...)
+		}
+	}
+	return string(append(b, '"'))
+}
+
+// TestDiscoverSkipsMetaSessions: meta-sessões do worrel (1º prompt = assinatura
+// do destilador, com e sem aspas) são descartadas na descoberta; sessões reais
+// permanecem. Garante inventário == importador.
+func TestDiscoverSkipsMetaSessions(t *testing.T) {
+	root := t.TempDir()
+	writeSession(t, root, "-tmp-meta1", "meta-plain", "Você é um destilador de conhecimento. Resuma.")
+	writeSession(t, root, "-tmp-meta2", "meta-quoted", `"Você é um destilador de conhecimento. Resuma."`)
+	writeSession(t, root, "-tmp-real1", "real-1", "como faço deploy?")
+	writeSession(t, root, "-tmp-real2", "real-2", "corrija este bug em Go")
+
+	a := &Adapter{ProjectsRoot: root}
+	got, err := a.DiscoverSessions(time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("sessions = %d, want 2 (meta descartadas)", len(got))
+	}
+	for _, s := range got {
+		if s.ExternalRef == "meta-plain" || s.ExternalRef == "meta-quoted" {
+			t.Fatalf("meta-sessão %q não foi descartada", s.ExternalRef)
+		}
+	}
+}
+
 func TestDiscoverSessionsSince(t *testing.T) {
 	root, jsonlPath := writeFixture(t)
 	future := time.Now().Add(time.Hour)
