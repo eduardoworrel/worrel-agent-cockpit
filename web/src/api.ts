@@ -1,0 +1,371 @@
+export interface Project {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  dirs: string[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface MemoryVersion {
+  id: number;
+  project_id: string;
+  content: string;
+  note: string;
+  created_at: number;
+}
+
+export interface Skill {
+  id: string;
+  project_id: string;
+  slug: string;
+  name: string;
+  content: string;
+  created_at: number;
+  updated_at: number;
+  active_generation: number;
+  evolution_policy: string;
+  origin: string;
+}
+
+export interface SkillGeneration {
+  id: number;
+  skill_id: string;
+  generation: number;
+  evolution_type: string;
+  parent_skill_ids: string[];
+  diff: string;
+  snapshot: string;
+  change_summary: string;
+  evidence: string;
+  authorship: string;
+  created_at: number;
+}
+
+export interface SkillStats {
+  total_uses: number;
+  success_count: number;
+  error_count: number;
+  edge_cases: number;
+  avg_duration_ms: number;
+  success_rate: number;
+  trend: string;
+  consec_fail: number;
+}
+
+export interface Suggestion {
+  id: string;
+  project_id: string;
+  session_id: string | null;
+  skill_id: string | null;
+  type: string;
+  status: string;
+  title: string;
+  payload: string;
+  evidence: string;
+  created_at: number;
+  resolved_at: number | null;
+}
+
+export interface Session {
+  id: string;
+  project_id: string;
+  adapter: string;
+  mode: string;
+  title: string;
+  status: string;
+  started_at: number;
+  ended_at: number | null;
+  summary: string;
+  transcript_pruned: boolean;
+  continues?: string | null;
+  context_used?: number;
+  context_limit?: number;
+  workspace_dir?: string;
+}
+
+const BASE = '/api';
+
+async function req<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export function listProjects(): Promise<Project[]> {
+  return req('/projects');
+}
+
+export interface DirListing {
+  path: string;
+  parent: string;
+  home: string;
+  entries: { name: string; path: string }[];
+}
+
+export function listDirs(path?: string): Promise<DirListing> {
+  const qs = path ? `?path=${encodeURIComponent(path)}` : '';
+  return req(`/fs/dirs${qs}`);
+}
+
+export function createProject(name: string, description: string, dirs: string[]): Promise<Project> {
+  return req('/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name, description, dirs }),
+  });
+}
+
+export function getProject(id: string): Promise<Project> {
+  return req(`/projects/${id}`);
+}
+
+export function updateProject(id: string, name: string, description: string): Promise<void> {
+  return req(`/projects/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+export function getMemory(projectId: string): Promise<MemoryVersion> {
+  return req(`/projects/${projectId}/memory`);
+}
+
+export function saveMemory(projectId: string, content: string, note: string): Promise<MemoryVersion> {
+  return req(`/projects/${projectId}/memory`, {
+    method: 'PUT',
+    body: JSON.stringify({ content, note }),
+  });
+}
+
+export function listMemoryVersions(projectId: string): Promise<MemoryVersion[]> {
+  return req(`/projects/${projectId}/memory/versions`);
+}
+
+export function revertMemory(projectId: string, versionId: number): Promise<MemoryVersion> {
+  return req(`/projects/${projectId}/memory/revert`, {
+    method: 'POST',
+    body: JSON.stringify({ version_id: versionId }),
+  });
+}
+
+export function listSkills(projectId?: string): Promise<Skill[]> {
+  const qs = projectId ? `?project_id=${projectId}` : '';
+  return req(`/skills${qs}`);
+}
+
+export function createSkill(projectId: string, name: string, content: string): Promise<Skill> {
+  return req(`/projects/${projectId}/skills`, {
+    method: 'POST',
+    body: JSON.stringify({ name, content }),
+  });
+}
+
+export function updateSkill(id: string, name: string, content: string): Promise<Skill> {
+  return req(`/skills/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, content }),
+  });
+}
+
+export function listGenerations(skillId: string): Promise<SkillGeneration[]> {
+  return req(`/skills/${skillId}/generations`);
+}
+
+export function revertGeneration(skillId: string, generation: number): Promise<Skill> {
+  return req(`/skills/${skillId}/revert`, {
+    method: 'POST',
+    body: JSON.stringify({ generation }),
+  });
+}
+
+export function getSkillStats(skillId: string): Promise<SkillStats> {
+  return req(`/skills/${skillId}/stats`);
+}
+
+export function setSkillPolicy(skillId: string, policy: string): Promise<Skill> {
+  return req(`/skills/${skillId}/policy`, {
+    method: 'PUT',
+    body: JSON.stringify({ policy }),
+  });
+}
+
+export function setProjectSkillsPolicy(projectId: string, policy: string): Promise<{ policy: string }> {
+  return req(`/projects/${projectId}/skills/policy`, {
+    method: 'PUT',
+    body: JSON.stringify({ policy }),
+  });
+}
+
+export function exportSkill(skillId: string): Promise<string> {
+  return fetch(`/api/skills/${skillId}/export`).then(r => r.text());
+}
+
+export function importSkill(projectId: string, content: string): Promise<Skill> {
+  return req(`/projects/${projectId}/skills/import`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+
+export function reclassifySuggestion(id: string, type: string): Promise<Suggestion> {
+  return req(`/suggestions/${id}/type`, {
+    method: 'PUT',
+    body: JSON.stringify({ type }),
+  });
+}
+
+export function listSuggestions(projectId?: string, status?: string): Promise<Suggestion[]> {
+  const params = new URLSearchParams();
+  if (projectId) params.set('project_id', projectId);
+  if (status) params.set('status', status);
+  const qs = params.toString() ? `?${params}` : '';
+  return req(`/suggestions${qs}`);
+}
+
+export function createSuggestion(s: Partial<Suggestion>): Promise<Suggestion> {
+  return req('/suggestions', { method: 'POST', body: JSON.stringify(s) });
+}
+
+export function acceptSuggestion(id: string, edited?: { title: string; payload: string }): Promise<Suggestion> {
+  return req(`/suggestions/${id}/accept`, {
+    method: 'POST',
+    body: JSON.stringify(edited ?? {}),
+  });
+}
+
+export function rejectSuggestion(id: string): Promise<Suggestion> {
+  return req(`/suggestions/${id}/reject`, { method: 'POST' });
+}
+
+export function deferSuggestion(id: string): Promise<Suggestion> {
+  return req(`/suggestions/${id}/defer`, { method: 'POST' });
+}
+
+export function listSessions(projectId?: string): Promise<Session[]> {
+  const qs = projectId ? `?project_id=${projectId}` : '';
+  return req(`/sessions${qs}`);
+}
+
+export interface DetectedAdapter {
+  id: string;
+  installed: { present: boolean; path: string; version: string };
+  caps: { hooks: boolean; headless: boolean; own_session_id: boolean; context_measured: boolean };
+}
+
+export function listAdapters(): Promise<DetectedAdapter[]> {
+  return req('/adapters');
+}
+
+export function createSession(projectId: string, adapter: string, skill?: string): Promise<Session> {
+  return req(`/projects/${projectId}/sessions`, {
+    method: 'POST',
+    body: JSON.stringify({ adapter, skill: skill ?? '' }),
+  });
+}
+
+export function killSession(id: string): Promise<void> {
+  return req(`/sessions/${id}/kill`, { method: 'POST' });
+}
+
+export function postHandoff(id: string): Promise<{ old_id: string; new_id: string; summary: string }> {
+  return req(`/sessions/${id}/handoff`, { method: 'POST' });
+}
+
+export function getSettings(): Promise<Record<string, string>> {
+  return req('/settings');
+}
+
+export function putSettings(s: Record<string, string>): Promise<void> {
+  return req('/settings', { method: 'PUT', body: JSON.stringify(s) });
+}
+
+// --- Secrets ---
+
+export interface Secret {
+  id: string;
+  project_id: string;
+  name: string;
+  mode: 'value' | 'recipe';
+  recipe: string;
+  policy: 'always' | 'per_session' | 'per_access';
+  injectable: boolean;
+  has_value: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface SecretAudit {
+  id: number;
+  secret_id: string | null;
+  secret_name: string;
+  session_id: string | null;
+  project_id: string | null;
+  action: string;
+  detail: string;
+  created_at: number;
+}
+
+export function listSecrets(projectId: string): Promise<Secret[]> {
+  return req(`/projects/${projectId}/secrets`);
+}
+
+export function createSecret(projectId: string, data: {
+  name: string; mode: string; value?: string; recipe?: string;
+  policy?: string; injectable?: boolean;
+}): Promise<Secret> {
+  return req(`/projects/${projectId}/secrets`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteSecret(id: string): Promise<void> {
+  return req(`/secrets/${id}`, { method: 'DELETE' });
+}
+
+export function updateSecretValue(id: string, value: string): Promise<void> {
+  return req(`/secrets/${id}/value`, { method: 'PUT', body: JSON.stringify({ value }) });
+}
+
+export function updateSecretPolicy(id: string, policy: string, injectable: boolean): Promise<void> {
+  return req(`/secrets/${id}/policy`, { method: 'PUT', body: JSON.stringify({ policy, injectable }) });
+}
+
+export function listSecretAudit(projectId: string): Promise<SecretAudit[]> {
+  return req(`/projects/${projectId}/secrets/audit`);
+}
+
+export function answerSecretApproval(reqId: string, approve: boolean): Promise<void> {
+  return req(`/secret-approvals/${reqId}`, { method: 'POST', body: JSON.stringify({ approve }) });
+}
+
+export function setInjection(projectId: string, enabled: boolean): Promise<void> {
+  return req(`/projects/${projectId}/secrets/injection`, { method: 'PUT', body: JSON.stringify({ enabled }) });
+}
+
+export function createFreeSession(adapter: string, dirs?: string[], skill?: string): Promise<Session> {
+  return req('/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ adapter, dirs: dirs ?? [], skill: skill ?? '' }),
+  });
+}
+
+export function classifySession(id: string, projectId: string): Promise<{ ok: boolean }> {
+  return req(`/sessions/${id}/classify`, {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId }),
+  });
+}
+
+export function promoteSession(id: string, name: string, description: string): Promise<Project> {
+  return req(`/sessions/${id}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+export function listActiveSessions(): Promise<Session[]> {
+  return req('/sessions/active');
+}

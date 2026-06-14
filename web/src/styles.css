@@ -1,0 +1,586 @@
+/* ============================================================
+   Worrel — warm-light design system
+   Tokens · reset · tipografia · shell · componentes
+   ============================================================ */
+
+:root {
+  /* superfícies */
+  --bg: #fbf8f1;
+  --surface: #ffffff;
+  --surface-warm: #f4eee1;
+  --surface-sunk: #f7f2e8;
+
+  /* tinta */
+  --ink: #191510;
+  --ink-soft: #3a342b;
+  --muted: #6e6557;
+  --faint: #98907f;
+
+  /* linhas */
+  --line: #e7e0d2;
+  --line-strong: #d8cfbd;
+
+  /* espectro de acento */
+  --orange: #ff6a1a;
+  --orange-ink: #c34800;
+  --pink: #ee2e96;
+  --amber: #ffc02e;
+  --sky: #2fa4ee;
+  --green: #1f9d57;
+  --red: #e23b3b;
+
+  /* pastéis */
+  --fill-pink: #fce0ee;
+  --fill-amber: #fff1c2;
+  --fill-sky: #dceefc;
+  --fill-cream: #f3eddf;
+  --fill-green: #d9f1e2;
+
+  /* tipografia */
+  --sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Inter Tight Variable', var(--sans);
+  --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* raios */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* sombras (quentes, sutis) */
+  --shadow-sm: 0 1px 2px rgba(40, 30, 10, 0.04), 0 1px 1px rgba(40, 30, 10, 0.03);
+  --shadow-md: 0 4px 16px rgba(40, 30, 10, 0.06), 0 1px 3px rgba(40, 30, 10, 0.05);
+  --shadow-lg: 0 12px 40px rgba(40, 30, 10, 0.10);
+
+  /* foco */
+  --ring: 0 0 0 3px rgba(255, 106, 26, 0.28);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+  background: var(--bg);
+  color: var(--ink-soft);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#root { display: flex; width: 100%; height: 100%; }
+
+/* grão warm sutil sobre o creme — textura premium, quase imperceptível */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+  opacity: .018; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@media (prefers-reduced-motion: reduce) { body::before { display: none; } }
+
+h1, h2, h3, h4 {
+  font-family: var(--display);
+  color: var(--ink);
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.12;
+}
+
+a { color: var(--orange-ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+::selection { background: var(--amber); color: var(--ink); }
+
+/* ============================================================
+   Layout shell
+   ============================================================ */
+
+.app-layout { display: flex; width: 100%; height: 100%; }
+
+/* Sidebar */
+.sidebar {
+  width: 248px;
+  min-width: 248px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  overflow-y: auto;
+}
+
+.sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  padding: 4px 8px 18px;
+}
+
+.sidebar-title .mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+
+.sidebar a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  transition: background 0.14s, color 0.14s;
+}
+
+.sidebar a:hover { background: var(--surface-warm); color: var(--ink); }
+
+.sidebar a.active {
+  background: var(--surface-warm);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--orange);
+}
+
+.sidebar-section {
+  padding: 16px 10px 6px;
+  font-size: 0.69rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--faint);
+}
+
+/* Main */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px;
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.main h1 { font-size: 1.8rem; font-weight: 720; letter-spacing: -.03em; margin: 0 0 4px; }
+.main h2 { font-size: 1.18rem; margin: 0 0 14px; }
+
+/* Page header pattern */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.page-head .sub { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+.page-head .actions { display: flex; gap: 8px; flex: none; }
+
+/* ============================================================
+   Cards
+   ============================================================ */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+a.card, .card.clickable { cursor: pointer; }
+a.card:hover, .card.clickable:hover {
+  border-color: var(--orange);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ============================================================
+   Botões
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #000; }
+
+.btn-accent { background: var(--orange); color: #fff; }
+.btn-accent:hover:not(:disabled) { background: #f25c08; }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-warm); border-color: var(--ink); }
+
+.btn-danger { background: var(--surface); color: var(--red); border-color: #f0c4c4; }
+.btn-danger:hover:not(:disabled) { background: #fbeaea; border-color: var(--red); }
+
+.btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+/* ============================================================
+   Badges, pills, tags de tipo
+   ============================================================ */
+
+.badge {
+  background: var(--orange);
+  color: #fff;
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-warm);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 2px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+/* tipos de sugestão / skill — cor por categoria */
+.pill[data-type*="correction"], .pill.pink { background: var(--fill-pink); color: #a01464; border-color: transparent; }
+.pill[data-type*="learned"],    .pill.sky  { background: var(--fill-sky);  color: #155f93; border-color: transparent; }
+.pill[data-type*="variant"],    .pill.amber{ background: var(--fill-amber);color: #8a6400; border-color: transparent; }
+.pill.green { background: var(--fill-green); color: #146b3a; border-color: transparent; }
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+
+.tab {
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+}
+
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--orange); }
+
+/* ============================================================
+   Formulários
+   ============================================================ */
+
+input, select, textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  padding: 9px 12px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input::placeholder, textarea::placeholder { color: var(--faint); }
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--orange);
+  box-shadow: var(--ring);
+}
+
+textarea { resize: vertical; min-height: 80px; }
+select option { background: var(--surface); }
+
+label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 5px;
+  display: block;
+}
+
+/* ============================================================
+   Tabelas
+   ============================================================ */
+
+table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+
+th {
+  color: var(--faint);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+tbody tr { transition: background 0.12s; }
+tbody tr:hover { background: var(--surface-warm); }
+tr:last-child td { border-bottom: none; }
+
+/* ============================================================
+   Modal
+   ============================================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(25, 21, 16, 0.42);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  width: 440px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.18s ease;
+}
+
+.modal h2 { margin: 0 0 16px; font-size: 1.2rem; }
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+
+.toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 200; }
+
+.toast {
+  background: var(--ink);
+  color: #fff;
+  padding: 11px 18px;
+  border-radius: var(--r-pill);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.22s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   Estados vazios
+   ============================================================ */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--muted);
+}
+.empty h2 { color: var(--ink); margin-bottom: 6px; }
+.empty .fan { width: 120px; height: 60px; margin-bottom: 20px; opacity: 0.9; }
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.mono  { font-family: var(--mono); }
+
+.error, .error-banner {
+  color: var(--red);
+  background: #fbeaea;
+  border: 1px solid #f0c4c4;
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  margin: 8px 0;
+}
+
+.btn:focus-visible,
+.tab:focus-visible,
+.sidebar a:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.page, .retro-page { display: block; }
+
+/* ============================================================
+   Retro / linhagem (refinado adiante)
+   ============================================================ */
+
+.retro-wizard section { margin-bottom: 24px; }
+.retro-wizard label { color: var(--muted); font-weight: 500; }
+
+.retro-inventory, .retro-clusters { list-style: none; padding: 0; margin: 8px 0; }
+
+.retro-inventory li, .retro-clusters li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.retro-clusters li.resolved { opacity: 0.5; }
+
+.retro-batch { margin-top: 16px; }
+
+.retro-batch-project {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.retro-batch-type { margin-bottom: 16px; }
+.retro-batch-type-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.retro-batch-actions { display: flex; gap: 8px; margin-left: auto; }
+.retro-batch ul { list-style: none; padding: 0; margin: 0; }
+.retro-batch li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.retro-item-evidence { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+.lineage .card.active-generation {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 1px var(--orange), var(--shadow-md);
+}
+
+/* Leque vivo de linhagem — cada raio abre do pivô com stagger */
+.fan-lineage { display: block; margin: 0 auto 4px; }
+.fan-ray {
+  animation: fan-open 0.55s var(--ease, cubic-bezier(.2,.7,.2,1)) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes fan-open {
+  from { transform: scale(0.2) rotate(-8deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0); opacity: 1; }
+}
+.fan-lineage text { animation: fan-fade 0.4s ease both; animation-delay: 0.5s; }
+@keyframes fan-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .fan-ray, .fan-lineage text { animation: none; }
+}
+
+.lineage-head {
+  background: var(--surface-warm);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 10px 4px;
+  margin-bottom: 12px;
+}
+
+/* ── Faixa de sessões ativas (persistente, estilo IDE) ─────────────────── */
+.session-strip {
+  display: flex; align-items: center; gap: 0.25rem;
+  padding: 0.35rem 1rem; background: var(--surface);
+  border-bottom: 1px solid var(--line); overflow-x: auto; flex-shrink: 0;
+}
+.session-strip-label { font-size: 0.75rem; color: var(--muted); margin-right: 0.5rem; white-space: nowrap; }
+.session-tab { cursor: pointer; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; user-select: none; }
+.session-tab-title { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.session-tab-pct { font-size: 0.7rem; color: var(--muted); }
+.session-tab-close {
+  padding: 0 0.3rem; font-size: 0.85rem; line-height: 1; background: transparent;
+  border: none; color: var(--muted); cursor: pointer; border-radius: 4px;
+}
+.session-tab-close:hover { color: var(--red); background: var(--fill-pink); }
+
+/* barra de progresso do inventário (scan real) */
+.inv-progress {
+  margin-top: 28px; width: 100%; max-width: 520px; text-align: left;
+}
+.inv-progress-label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 0.88rem; color: var(--ink-soft); margin-bottom: 8px;
+}
+.inv-progress-label .mono { color: var(--muted); font-size: 0.82rem; }
+.inv-progress-track {
+  height: 10px; border-radius: var(--r-pill); background: var(--surface-sunk);
+  border: 1px solid var(--line); overflow: hidden;
+}
+.inv-progress-fill {
+  height: 100%; border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--amber), var(--orange));
+  transition: width 240ms ease;
+}
+
+/* indicador de atividade (clusterização em voo) */
+.pulse { animation: pulse-fade 1.2s ease-in-out infinite; }
+@keyframes pulse-fade {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}

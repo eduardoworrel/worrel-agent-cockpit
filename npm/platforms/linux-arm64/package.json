@@ -1,0 +1,15 @@
+{
+  "name": "@worrel/linux-arm64",
+  "version": "0.0.0",
+  "description": "Binário do Worrel para Linux arm64.",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin/"
+  ],
+  "license": "MIT"
+}

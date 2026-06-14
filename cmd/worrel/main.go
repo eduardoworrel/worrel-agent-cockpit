@@ -1,0 +1,253 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
+
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/claudecode"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/opencode"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/handoff"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/httpapi"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mcpserver"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/retention"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/retro"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/vault"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/workspace"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/wrapper"
+)
+
+// version é estampada no build via -ldflags "-X main.version=<tag>".
+var version = "dev"
+
+func main() {
+	addr := flag.String("addr", "127.0.0.1:7717", "endereço de escuta")
+	dataDir := flag.String("data", defaultDataDir(), "diretório de dados (~/.worrel)")
+	portFlag := flag.Int("port", 0, "porta (atalho; sobrepõe a porta de --addr)")
+	noOpen := flag.Bool("no-open", false, "não abrir o navegador automaticamente")
+	showVersion := flag.Bool("version", false, "imprime a versão e sai")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
+
+	// WORREL_CLAUDE_PROJECTS overrides the default ~/.claude/projects root (fase 4 E2E)
+	claudeProjectsRoot := os.Getenv("WORREL_CLAUDE_PROJECTS")
+
+	if err := os.MkdirAll(*dataDir, 0o755); err != nil {
+		log.Fatal(err)
+	}
+	st, err := store.Open(filepath.Join(*dataDir, "worrel.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer st.Close()
+	st.SetDataDir(*dataDir)
+
+	wsManager := workspace.New(*dataDir)
+
+	jan := retention.New(st)
+	// context.Background() por ora — a costura via ctx permite cancelamento limpo no futuro.
+	go runJanitor(context.Background(), jan)
+
+	masterPass := os.Getenv("WORREL_MASTER_PASSWORD")
+	vlt, err := vault.Open(st, masterPass)
+	if err != nil {
+		log.Fatalf("cofre: %v", err)
+	}
+
+	mir := mirror.New(*dataDir)
+	b := bus.New()
+	mcp := mcpserver.New(st, b)
+
+	cc := &claudecode.Adapter{ProjectsRoot: claudeProjectsRoot}
+	oc := &opencode.Adapter{}
+	reg := adapter.NewRegistry()
+	reg.Register(cc)
+	reg.Register(oc)
+	wm := wrapper.New(st, b)
+
+	// endereço de escuta: --port (se setado) sobrepõe a porta de --addr.
+	listenAddr := *addr
+	if *portFlag != 0 {
+		if host, _, err := net.SplitHostPort(*addr); err == nil {
+			listenAddr = net.JoinHostPort(host, strconv.Itoa(*portFlag))
+		}
+	}
+	ln, err := listenWithFallback(listenAddr, 20)
+	if err != nil {
+		log.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	// Fase 4: motor de varredura, importador e watcher.
+	// Adaptador headless das análises respeita o setting (spec §10): default
+	// claude-code; opencode quando configurado (evita gastar a quota do Claude).
+	var headless distill.Headless = cc
+	if st.GetSetting("headless_adapter", "claude-code") == "opencode" {
+		headless = oc
+	}
+	eng := distill.New(st, headless, b)
+	imp := distill.NewImporter(st, b)
+	runImport := func() {
+		if n, err := imp.Import(cc); err != nil {
+			log.Printf("importer claude-code: %v", err)
+		} else if n > 0 {
+			log.Printf("importer: %d sessão(ões) importada(s) do claude-code", n)
+		}
+		if n, err := imp.Import(oc); err != nil {
+			log.Printf("importer opencode: %v", err)
+		} else if n > 0 {
+			log.Printf("importer: %d sessão(ões) importada(s) do opencode", n)
+		}
+	}
+	watchRoot := cc.ProjectsRootOrDefault()
+	if w, err := distill.NewWatcher(watchRoot, 500*time.Millisecond, func() { runImport() }); err == nil {
+		go w.Run()
+	}
+	// import silencioso no boot (não bloqueia).
+	// Varredura de escopo (scope-distillation) roda sob demanda via POST /api/sweep,
+	// não mais automaticamente no boot — evita sugestões create_project não solicitadas.
+	go runImport()
+
+	mcp.SetVault(vlt)
+
+	// Handoff: usa o primeiro adaptador headless disponível (preferência: claude-code).
+	var handoffGen *handoff.Generator
+	var spawner *wrapperSpawner
+	for _, adID := range []string{"claude-code", "opencode"} {
+		if ad, ok := reg.Get(adID); ok && ad.Capabilities().Headless {
+			sum := handoff.NewAdapterSummarizer(ad)
+			handoffGen = handoff.New(st, sum)
+			mcp.WithSummaryGenerator(handoffGen)
+			spawner = &wrapperSpawner{store: st, wrapper: wm, workspace: wsManager, adapter: ad, reg: reg, port: port}
+			break
+		}
+	}
+
+	// Applier com bus para eventos de linhagem/auto-modo; liga o auto-aplicador
+	// ao engine para o modo automático opt-in (spec §6) durante o sweep.
+	applier := apply.New(st, mir, b)
+	eng.SetAutoApplier(applier)
+
+	// Fase 8: serviço de análise retroativa. Observadores = adaptadores instalados
+	// (claude-code, opencode), que satisfazem retro.Observer; reusa engine + applier.
+	// Mapa de adapters headless por ID para override de provider por run
+	// (seletor na tela de análise retroativa). Vazio = usa o adapter do boot.
+	retroHeadless := map[string]distill.Headless{cc.ID(): cc, oc.ID(): oc}
+	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc}, retroHeadless)
+
+	srv := httpapi.New(httpapi.Deps{
+		Store:     st,
+		Mirror:    mir,
+		Bus:       b,
+		Applier:   applier,
+		MCP:       mcp.HTTPHandler(),
+		Wrapper:   wm,
+		Workspace: wsManager,
+		Adapters:  reg,
+		Port:      port,
+		Distiller: eng,
+		Vault:     vlt,
+		Handoff:   handoffGen,
+		Spawner:   spawner,
+		Retro:     retroSvc,
+	})
+
+	url := fmt.Sprintf("http://%s", ln.Addr().String())
+	log.Printf("worrel ouvindo em %s (dados em %s)", url, *dataDir)
+	if !*noOpen {
+		go openBrowser(url)
+	}
+	log.Fatal(http.Serve(ln, srv.Handler()))
+}
+
+func defaultDataDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".worrel"
+	}
+	return filepath.Join(home, ".worrel")
+}
+
+// runJanitor varre transcripts expirados no start e a cada 6h (spec §11);
+// encerra quando ctx é cancelado.
+func runJanitor(ctx context.Context, j *retention.Janitor) {
+	sweep := func() {
+		n, err := j.Sweep()
+		if err != nil {
+			log.Printf("retention: erro na varredura: %v", err)
+			return
+		}
+		if n > 0 {
+			log.Printf("retention: %d transcript(s) podado(s)", n)
+		}
+	}
+	sweep()
+	t := time.NewTicker(6 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sweep()
+		}
+	}
+}
+
+// wrapperSpawner implementa httpapi.Spawner usando wrapper.Manager.
+type wrapperSpawner struct {
+	store     *store.Store
+	wrapper   *wrapper.Manager
+	workspace *workspace.Manager
+	adapter   adapter.Adapter
+	reg       *adapter.Registry
+	port      int
+}
+
+// Spawn cria uma nova sessão wrapper no projeto com o primer e o link continues.
+func (ws *wrapperSpawner) Spawn(projectID, primer, continues string) (string, error) {
+	sess, err := ws.store.CreateSession(&store.Session{
+		ProjectID: projectID,
+		Adapter:   ws.adapter.ID(),
+		Mode:      "wrapper",
+		Continues: &continues,
+	})
+	if err != nil {
+		return "", err
+	}
+	// Monta SpawnOpts a partir do store (memória + MCP token), depois sobrescreve o primer.
+	opts, err := wrapper.BuildSpawnOpts(ws.store, ws.workspace, sess.ID, ws.port, "")
+	if err != nil {
+		return "", err
+	}
+	// Substituir o primer pelo handoff primer (memória + resumo + skills).
+	if primer != "" {
+		opts.Primer = primer
+	}
+	spec, err := ws.adapter.BuildInteractive(opts)
+	if err != nil {
+		return "", err
+	}
+	if err := ws.wrapper.Spawn(sess.ID, spec); err != nil {
+		_ = ws.store.EndSession(sess.ID)
+		return "", err
+	}
+	return sess.ID, nil
+}
