@@ -18,6 +18,7 @@ type Skill struct {
 	ActiveGeneration int64  `json:"active_generation"`
 	EvolutionPolicy  string `json:"evolution_policy"`
 	Origin           string `json:"origin"`
+	Metadata         string `json:"metadata"`
 }
 
 func (s *Store) CreateSkill(projectID, name, content string) (*Skill, error) {
@@ -39,8 +40,9 @@ func (s *Store) CreateSkill(projectID, name, content string) (*Skill, error) {
 	}
 	sk := &Skill{ID: uuid.NewString(), ProjectID: projectID, Slug: slug, Name: name,
 		Content: content, CreatedAt: now(), UpdatedAt: now()}
-	_, err := s.db.Exec(`INSERT INTO skills (id, project_id, slug, name, content, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?)`, sk.ID, sk.ProjectID, sk.Slug, sk.Name, sk.Content, sk.CreatedAt, sk.UpdatedAt)
+	sk.Metadata = "{}"
+	_, err := s.db.Exec(`INSERT INTO skills (id, project_id, slug, name, content, created_at, updated_at, metadata)
+		VALUES (?,?,?,?,?,?,?,?)`, sk.ID, sk.ProjectID, sk.Slug, sk.Name, sk.Content, sk.CreatedAt, sk.UpdatedAt, sk.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -56,10 +58,11 @@ func (s *Store) CreateSkill(projectID, name, content string) (*Skill, error) {
 func (s *Store) GetSkill(id string) (*Skill, error) {
 	sk := &Skill{}
 	err := s.db.QueryRow(`SELECT id, project_id, slug, name, content, created_at, updated_at,
-		COALESCE(active_generation,1), COALESCE(evolution_policy,'manual'), COALESCE(origin,'learned')
+		COALESCE(active_generation,1), COALESCE(evolution_policy,'manual'), COALESCE(origin,'learned'),
+		COALESCE(metadata,'{}')
 		FROM skills WHERE id=?`, id).
 		Scan(&sk.ID, &sk.ProjectID, &sk.Slug, &sk.Name, &sk.Content, &sk.CreatedAt, &sk.UpdatedAt,
-			&sk.ActiveGeneration, &sk.EvolutionPolicy, &sk.Origin)
+			&sk.ActiveGeneration, &sk.EvolutionPolicy, &sk.Origin, &sk.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,8 @@ func (s *Store) GetSkill(id string) (*Skill, error) {
 // ListSkills com projectID vazio lista todas.
 func (s *Store) ListSkills(projectID string) ([]*Skill, error) {
 	q := `SELECT id, project_id, slug, name, content, created_at, updated_at,
-		COALESCE(active_generation,1), COALESCE(evolution_policy,'manual'), COALESCE(origin,'learned') FROM skills`
+		COALESCE(active_generation,1), COALESCE(evolution_policy,'manual'), COALESCE(origin,'learned'),
+		COALESCE(metadata,'{}') FROM skills`
 	args := []any{}
 	if projectID != "" {
 		q += ` WHERE project_id=?`
@@ -85,7 +89,8 @@ func (s *Store) ListSkills(projectID string) ([]*Skill, error) {
 	for rows.Next() {
 		sk := &Skill{}
 		if err := rows.Scan(&sk.ID, &sk.ProjectID, &sk.Slug, &sk.Name, &sk.Content,
-			&sk.CreatedAt, &sk.UpdatedAt, &sk.ActiveGeneration, &sk.EvolutionPolicy, &sk.Origin); err != nil {
+			&sk.CreatedAt, &sk.UpdatedAt, &sk.ActiveGeneration, &sk.EvolutionPolicy, &sk.Origin,
+			&sk.Metadata); err != nil {
 			return nil, err
 		}
 		out = append(out, sk)
@@ -139,6 +144,21 @@ func (s *Store) SetProjectSkillsPolicy(projectID, policy string) error {
 func (s *Store) RenameSkill(id, name string) error {
 	_, err := s.db.Exec(`UPDATE skills SET name=?, updated_at=? WHERE id=?`, name, now(), id)
 	return err
+}
+
+// SetSkillMetadata grava o JSON de metadata da skill (ex.: {kind:pipeline,steps:[...]}).
+func (s *Store) SetSkillMetadata(id, metadataJSON string) error {
+	if metadataJSON == "" {
+		metadataJSON = "{}"
+	}
+	res, err := s.db.Exec(`UPDATE skills SET metadata=?, updated_at=? WHERE id=?`, metadataJSON, now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) DeleteSkill(id string) error {

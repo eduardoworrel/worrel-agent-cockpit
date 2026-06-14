@@ -217,6 +217,10 @@ func (a *Applier) Accept(suggestionID string) error {
 			log.Printf("mirror: %v", err)
 		}
 		a.publish("skill.generation.created", sk.ID, g.Generation, evType)
+	case "pipeline":
+		if err := a.ApplyPipeline(sg); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("tipo de sugestão desconhecido: %s", sg.Type)
 	}
