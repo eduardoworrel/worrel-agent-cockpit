@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,6 +68,41 @@ func mcpConfigJSON(url string) string {
 	return string(b)
 }
 
+// hookMatcher escopa o PreToolUse às ferramentas que mutam/executam — sem isso,
+// toda leitura de arquivo abriria um balão.
+const hookMatcher = "Bash|Edit|Write|MultiEdit|NotebookEdit|WebFetch"
+
+// writeHookSettings grava um settings temporário com o hook PreToolUse que chama
+// "<selfExe> hook prompt --session <id> --port <port>" e devolve (path, cleanup).
+func writeHookSettings(selfExe, sessionID string, port int) (string, func() error, error) {
+	cmd := fmt.Sprintf("%s hook prompt --session %s --port %d", selfExe, sessionID, port)
+	settings := map[string]any{
+		"hooks": map[string]any{
+			"PreToolUse": []any{
+				map[string]any{
+					"matcher": hookMatcher,
+					"hooks": []any{
+						map[string]any{"type": "command", "command": cmd, "timeout": 31536000},
+					},
+				},
+			},
+		},
+	}
+	b, _ := json.MarshalIndent(settings, "", "  ")
+	f, err := os.CreateTemp("", "worrel-settings-*.json")
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", nil, err
+	}
+	f.Close()
+	path := f.Name()
+	return path, func() error { return os.Remove(path) }, nil
+}
+
 func (a *Adapter) BuildInteractive(opts adapter.SpawnOpts) (adapter.CmdSpec, error) {
 	args := []string{}
 	if opts.SessionID != "" {
@@ -78,13 +114,22 @@ func (a *Adapter) BuildInteractive(opts adapter.SpawnOpts) (adapter.CmdSpec, err
 	if opts.MCPURL != "" {
 		args = append(args, "--mcp-config", mcpConfigJSON(opts.MCPURL))
 	}
+	var cleanup func() error
+	if opts.SelfExe != "" && opts.Port != 0 {
+		path, cl, err := writeHookSettings(opts.SelfExe, opts.SessionID, opts.Port)
+		if err != nil {
+			return adapter.CmdSpec{}, err
+		}
+		args = append(args, "--settings", path)
+		cleanup = cl
+	}
 	// primer como prompt posicional final → visível no transcript (aceitação §13.1).
 	// "--" separa o primer dos flags variádicos (--mcp-config <configs...>),
 	// evitando que o parser de flags consuma o primer como config adicional.
 	if strings.TrimSpace(opts.Primer) != "" {
 		args = append(args, "--", opts.Primer)
 	}
-	return adapter.CmdSpec{Path: "claude", Args: args, Dir: opts.WorkingDir}, nil
+	return adapter.CmdSpec{Path: "claude", Args: args, Dir: opts.WorkingDir, Cleanup: cleanup}, nil
 }
 
 // buildRunArgs monta os argumentos do `claude` headless. O modelo (opts.Model),

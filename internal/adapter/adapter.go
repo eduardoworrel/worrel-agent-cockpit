@@ -38,6 +38,8 @@ type SpawnOpts struct {
 	MCPURL       string   // http://127.0.0.1:<port>/mcp?s=<token>
 	ConfigDir    string   // diretório temporário escrevível p/ arquivos de config do CLI
 	ExtraEnv     []string // env vars adicionais (formato KEY=VALUE); fase 5 injeta vault.InjectableEnv aqui sem re-editar wrapper.go
+	SelfExe    string   // caminho absoluto do binário worrel (para o comando do hook); vazio = sem hook
+	Port       int      // porta do servidor worrel (para a URL do hook); 0 = sem hook
 }
 
 // CmdSpec é o resultado puro de BuildInteractive: o que o PTY vai executar.

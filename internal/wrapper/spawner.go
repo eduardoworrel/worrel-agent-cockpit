@@ -2,6 +2,7 @@ package wrapper
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/google/uuid"
 
@@ -17,7 +18,8 @@ const autoReportInstructions = `Você está numa sessão gerida pelo worrel. Use
 - Quando o usuário corrigir seu entendimento ou uma convenção, chame report_correction.
 - Quando perceber um procedimento repetível e reutilizável, chame propose_skill (objetivo, inputs, passos, edge cases, critérios de conclusão).
 - Quando uma skill existente precisar de ajuste, chame propose_skill_update.
-Não invente projetos nem memórias: tudo vira sugestão pendente para o usuário aprovar.`
+Não invente projetos nem memórias: tudo vira sugestão pendente para o usuário aprovar.
+- Quando precisar confirmar uma ação ou pedir uma escolha ao usuário, chame a tool ask_user (ela mostra um balão na interface e espera a resposta) em vez de assumir.`
 
 // BuildSpawnOpts monta as opções de spawn a partir do estado persistido:
 // gera/persiste o token MCP, monta primer (memória + skill opcional) e a URL.
@@ -68,11 +70,14 @@ func BuildSpawnOpts(st *store.Store, wm *workspace.Manager, sessionID string, po
 		return adapter.SpawnOpts{}, err
 	}
 
+	selfExe, _ := os.Executable()
 	return adapter.SpawnOpts{
 		SessionID:    sessionID,
 		WorkingDir:   workdir,
 		Primer:       primer,
 		SystemAppend: autoReportInstructions,
 		MCPURL:       fmt.Sprintf("http://127.0.0.1:%d/mcp?s=%s", port, token),
+		SelfExe:      selfExe,
+		Port:         port,
 	}, nil
 }

@@ -150,6 +150,63 @@ func TestExtractHeadlessResult(t *testing.T) {
 	}
 }
 
+func TestBuildInteractiveWritesHookSettings(t *testing.T) {
+	a := &Adapter{}
+	spec, err := a.BuildInteractive(adapter.SpawnOpts{
+		SessionID: "sess-123",
+		SelfExe:   "/usr/local/bin/worrel",
+		Port:      7717,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var settingsPath string
+	for i, arg := range spec.Args {
+		if arg == "--settings" && i+1 < len(spec.Args) {
+			settingsPath = spec.Args[i+1]
+		}
+	}
+	if settingsPath == "" {
+		t.Fatal("--settings não foi passado")
+	}
+	if spec.Cleanup == nil {
+		t.Fatal("Cleanup deveria remover o arquivo de settings")
+	}
+	b, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("ler settings: %v", err)
+	}
+	body := string(b)
+	if !strings.Contains(body, "PreToolUse") || !strings.Contains(body, "hook prompt") {
+		t.Fatalf("settings sem hook PreToolUse: %s", body)
+	}
+	if !strings.Contains(body, "--session sess-123") || !strings.Contains(body, "--port 7717") {
+		t.Fatalf("comando do hook sem session/port: %s", body)
+	}
+	if !strings.Contains(body, "Bash|Edit|Write") {
+		t.Fatalf("matcher ausente: %s", body)
+	}
+	if err := spec.Cleanup(); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if _, err := os.Stat(settingsPath); !os.IsNotExist(err) {
+		t.Fatal("settings não foi removido pelo Cleanup")
+	}
+}
+
+func TestBuildInteractiveNoHookWithoutSelfExe(t *testing.T) {
+	a := &Adapter{}
+	spec, err := a.BuildInteractive(adapter.SpawnOpts{SessionID: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, arg := range spec.Args {
+		if arg == "--settings" {
+			t.Fatal("não deveria passar --settings sem SelfExe/Port")
+		}
+	}
+}
+
 func TestBuildRunArgsModel(t *testing.T) {
 	args := buildRunArgs("oi", adapter.HeadlessOpts{})
 	if slices.Contains(args, "--model") {
