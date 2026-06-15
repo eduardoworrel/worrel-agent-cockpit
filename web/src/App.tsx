@@ -8,7 +8,6 @@ import Terminal from './pages/Terminal';
 import Retro from './pages/Retro';
 import SecretApprovalModal from './components/SecretApprovalModal';
 import NewSessionModal from './components/NewSessionModal';
-import SessionTabs from './components/SessionTabs';
 import EmptyState from './shell/EmptyState';
 import ProjectSidebar from './shell/ProjectSidebar';
 import SuggestionsDrawer from './shell/SuggestionsDrawer';
@@ -98,7 +97,6 @@ function AppInner() {
       />
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <SessionTabs />
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Routes>
             <Route path="/" element={<Retro />} />
