@@ -69,6 +69,7 @@ func (s *Server) routes() {
 	s.routesRetro()
 	s.routesPipelines()
 	s.routesChat()
+	s.routesPrompts()
 	s.routesReset()
 	s.routesWS()
 	s.routesStatic()

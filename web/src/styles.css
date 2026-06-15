@@ -1216,3 +1216,6 @@ tr:last-child td { border-bottom: none; }
 .ns-item:hover { background: var(--surface-warm); }
 .ns-item:disabled { opacity: 0.5; cursor: default; }
 .ns-dot { color: var(--orange); font-size: 0.8rem; }
+
+.sidebar-settings-link { display: block; text-align: center; margin-top: 0.5rem; font-size: 0.82rem; color: var(--muted); padding: 0.3rem; border-radius: 6px; }
+.sidebar-settings-link:hover { background: var(--surface-warm); color: var(--ink); }

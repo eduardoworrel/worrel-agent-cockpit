@@ -123,10 +123,8 @@ const maxSampleTitles = 3
 // janelas grandes (ex.: milhares de sessões em 14+ dias) sem estourar o contexto.
 func (cl *Clusterer) buildPrompt(byDir map[string][]string, projects []*store.Project) string {
 	var b strings.Builder
-	b.WriteString("Você organiza um histórico de sessões de codificação em projetos.\n")
-	b.WriteString("Agrupe as PASTAS abaixo em projetos coerentes (funda pastas do mesmo escopo, separe assuntos distintos, nomeie).\n")
-	b.WriteString("Use os caminhos das pastas EXATAMENTE como aparecem (campo dirs).\n")
-	b.WriteString("Quando reconhecer um projeto existente, preencha existing_project_id.\n\n")
+	b.WriteString(strings.TrimSpace(cl.store.Prompt("scope")))
+	b.WriteString("\n\n")
 	b.WriteString("Projetos existentes:\n")
 	for _, p := range projects {
 		b.WriteString(fmt.Sprintf("- id=%s nome=%q dirs=%v\n", p.ID, p.Name, p.Dirs))

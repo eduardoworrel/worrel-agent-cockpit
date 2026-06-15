@@ -285,6 +285,25 @@ export function putSettings(s: Record<string, string>): Promise<void> {
   return req('/settings', { method: 'PUT', body: JSON.stringify(s) });
 }
 
+export interface PromptDef {
+  name: string;
+  value: string;
+  default: string;
+  overridden: boolean;
+}
+
+export function getPrompts(): Promise<PromptDef[]> {
+  return req('/prompts');
+}
+
+// savePrompt salva o override; value vazio (ou igual ao default) reseta ao default.
+export function savePrompt(name: string, value: string): Promise<unknown> {
+  return req(`/prompts/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+  });
+}
+
 // --- Secrets ---
 
 export interface Secret {

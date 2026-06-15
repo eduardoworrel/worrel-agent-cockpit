@@ -150,7 +150,7 @@ func (e *Engine) analyzeBatchInternal(ctx context.Context, sessionIDs []string, 
 
 	skills, _ := e.store.ListSkills("")
 	pending, _ := e.store.ListSuggestions("", "pending")
-	prompt := buildPrompt(batch, skills, pending)
+	prompt := buildPrompt(e.store.Prompt("skill"), e.store.Prompt("memory"), batch, skills, pending)
 
 	// FASE 2 — confirmação por LLM. Só aqui o contador incrementa.
 	// Override de adapter/modelo por lote (análise retroativa escolhe o provider

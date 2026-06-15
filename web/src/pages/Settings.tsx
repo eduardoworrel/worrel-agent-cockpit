@@ -1,6 +1,84 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getSettings, putSettings } from '../api';
+import { getSettings, putSettings, getPrompts, savePrompt } from '../api';
+import type { PromptDef } from '../api';
+
+const PROMPT_LABEL: Record<string, string> = {
+  memory: 'Memória — o que destilar como memória do projeto',
+  skill: 'Skills — o que vira procedimento reutilizável',
+  scope: 'Escopo — como agrupar sessões em projetos',
+};
+
+// PromptsCard expõe os prompts usados nas análises retroativas: editáveis,
+// com reset ao default embarcado. Override vazio volta ao default.
+function PromptsCard() {
+  const [prompts, setPrompts] = useState<PromptDef[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [savedName, setSavedName] = useState<string | null>(null);
+
+  function load() {
+    getPrompts()
+      .then((ps) => {
+        setPrompts(ps);
+        setDrafts(Object.fromEntries(ps.map((p) => [p.name, p.value])));
+      })
+      .catch(() => setPrompts([]));
+  }
+  useEffect(() => { load(); }, []);
+
+  async function save(name: string, value: string) {
+    setBusy(name);
+    try {
+      await savePrompt(name, value);
+      setSavedName(name);
+      setTimeout(() => setSavedName(null), 2000);
+      load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (prompts.length === 0) return null;
+
+  return (
+    <div className="card" style={{ maxWidth: '760px', marginTop: '1.5rem' }}>
+      <h2 style={{ marginTop: 0 }}>Prompts das análises</h2>
+      <p style={{ marginTop: 0, color: 'var(--muted)' }}>
+        Texto que orienta cada etapa da análise retroativa. Edite e salve para
+        sobrepor; deixe igual ao default (ou use “Restaurar default”) para voltar.
+      </p>
+      {prompts.map((p) => (
+        <div key={p.name} style={{ marginBottom: '1.25rem' }}>
+          <label htmlFor={`prompt-${p.name}`} style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+            {PROMPT_LABEL[p.name] ?? p.name}
+            {p.overridden && <span style={{ marginLeft: 8, color: 'var(--orange-ink)', fontSize: '0.8rem' }}>editado</span>}
+          </label>
+          <textarea
+            id={`prompt-${p.name}`}
+            value={drafts[p.name] ?? ''}
+            onChange={(e) => setDrafts((d) => ({ ...d, [p.name]: e.target.value }))}
+            rows={Math.min(20, (drafts[p.name] ?? '').split('\n').length + 1)}
+            style={{ width: '100%', fontFamily: 'var(--mono)', fontSize: '0.8rem' }}
+          />
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem', alignItems: 'center' }}>
+            <button className="btn btn-primary" disabled={busy === p.name} onClick={() => save(p.name, drafts[p.name] ?? '')}>
+              Salvar
+            </button>
+            <button
+              className="btn btn-secondary"
+              disabled={busy === p.name || !p.overridden}
+              onClick={() => save(p.name, '')}
+            >
+              Restaurar default
+            </button>
+            {savedName === p.name && <span style={{ color: 'var(--green)', fontWeight: 600 }}>salvo</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -123,6 +201,8 @@ export default function Settings() {
         <button className="btn btn-primary" disabled={busy} onClick={handleSave}>{t('settings.save')}</button>
         {saved && <span style={{ marginLeft: '1rem', color: 'var(--green)', fontWeight: 600 }}>{t('settings.saved')}</span>}
       </div>
+
+      <PromptsCard />
 
       <div className="card" style={{ maxWidth: '480px', marginTop: '1.5rem', borderColor: 'var(--red)' }}>
         <h2 style={{ marginTop: 0, color: 'var(--red)' }}>Zona de perigo</h2>

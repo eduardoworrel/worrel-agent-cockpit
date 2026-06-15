@@ -98,6 +98,7 @@ export default function ProjectSidebar({ projects, wrapperSessions, liveIds, onS
         <button className="btn btn-secondary" style={{ width: '100%' }} onClick={onAnalyzeHistory}>
           {t('onboarding.analyzeHistory')}
         </button>
+        <NavLink to="/settings" className="sidebar-settings-link">⚙ {t('nav.settings')}</NavLink>
       </div>
     </aside>
   );
