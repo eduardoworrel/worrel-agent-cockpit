@@ -92,7 +92,7 @@ function AppInner() {
       <ProjectSidebar
         projects={projects}
         wrapperSessions={wrapperSessions}
-        onNewSession={(pid) => setNewSessionProject(pid)}
+        onStarted={handleSessionCreated}
         onAnalyzeHistory={() => navigate('/retro')}
       />
 
@@ -111,9 +111,6 @@ function AppInner() {
 
       <SuggestionsDrawer activeProjectId={activeProjectId} reloadKey={reloadKey} />
 
-      {newSessionProject !== undefined && (
-        <NewSessionModal onCreated={handleSessionCreated} onClose={() => setNewSessionProject(undefined)} />
-      )}
       {approval && (
         <SecretApprovalModal requestId={approval.requestId} secretName={approval.secretName} onDone={() => setApproval(null)} />
       )}
