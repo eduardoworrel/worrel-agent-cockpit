@@ -7,6 +7,16 @@ import type { Project, Session } from '../api';
 
 const MYSPACE = '__myspace__';
 
+// sessionLabel devolve um rótulo legível para a sessão: o título, se houver;
+// senão o provider + a hora de início (evita exibir o hash do id).
+function sessionLabel(s: Session): string {
+  if (s.title) return s.title;
+  const time = s.started_at
+    ? new Date(s.started_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : '';
+  return [s.adapter, time].filter(Boolean).join(' · ') || s.id.slice(0, 8);
+}
+
 interface Props {
   projects: Project[];
   wrapperSessions: Session[];
@@ -57,7 +67,7 @@ export default function ProjectSidebar({ projects, wrapperSessions, liveIds, onS
         <div className="sidebar-sessions">
           {sessions.map((s) => (
             <NavLink key={s.id} to={`/sessions/${s.id}`} className="sidebar-session">
-              {s.title || s.id.slice(0, 8)}
+              {sessionLabel(s)}
             </NavLink>
           ))}
         </div>
@@ -74,7 +84,7 @@ export default function ProjectSidebar({ projects, wrapperSessions, liveIds, onS
       <div className="sidebar-section">{t('sidebar.projects')}</div>
 
       <nav className="sidebar-projects">
-        {row(MYSPACE, 'MySpace', orphans, null)}
+        {row(MYSPACE, 'no project', orphans, null)}
         {projects.map((p) => row(p.id, p.name, byProject(p.id), p.id, `/projects/${p.id}`))}
       </nav>
 
