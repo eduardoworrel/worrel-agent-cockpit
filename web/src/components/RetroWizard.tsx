@@ -9,8 +9,8 @@ import {
   type RetroRunProgress,
 } from '../retroApi';
 import RetroBatchReview from './RetroBatchReview';
+import RetroRangePicker, { type RangeValue } from './RetroRangePicker';
 
-const WINDOW_PRESETS = [7, 14, 30, 60, 90, 0]; // 0 = tudo
 const PROVIDERS = ['', 'claude-code', 'opencode', 'gemini', 'codex', 'pidev'];
 
 type StageKey = 'inventory' | 'scope' | 'map' | 'execution' | 'review';
@@ -57,7 +57,7 @@ export default function RetroWizard() {
   const { t } = useTranslation();
   const [report, setReport] = useState<InventoryReport | null>(null);
   const [loadingInventory, setLoadingInventory] = useState(true);
-  const [windowDays, setWindowDays] = useState(0); // "Tudo" por padrão — bate com o Dashboard
+  const [range, setRange] = useState<RangeValue>({ since: 0, until: 0 });
   const [depth, setDepth] = useState<'completa' | 'leve'>('completa');
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
@@ -76,13 +76,13 @@ export default function RetroWizard() {
   const refreshInventory = useCallback(async () => {
     setLoadingInventory(true);
     try {
-      setReport(await inventory(windowDays));
+      setReport(await inventory(0)); // varre tudo; o recorte é feito no cliente via range
     } catch (e) {
       setErr(String(e));
     } finally {
       setLoadingInventory(false);
     }
-  }, [windowDays]);
+  }, []);
 
   useEffect(() => {
     refreshInventory();
@@ -124,7 +124,9 @@ export default function RetroWizard() {
     const scope: Scope = {
       clis: Object.keys(report?.per_cli ?? {}).filter((c) => !excludedClis[c]),
       dirs: [],
-      window_days: windowDays,
+      window_days: 0,
+      since: range.since,
+      until: range.until,
       adapter: provider,
       model: model.trim(),
     };
@@ -194,22 +196,15 @@ export default function RetroWizard() {
             <p className="muted">{t('retro.wizard.scopeSubtitle')}</p>
           </header>
 
-          {/* Janela: segmented control — PRIMEIRA info (define o recorte do histórico) */}
+          {/* Período: recorte data-driven derivado do inventário */}
           <div className="retro-field">
             <span className="retro-field-label">{t('retro.wizard.window')}</span>
-            <div className="retro-segmented" role="group" aria-label={t('retro.wizard.window')}>
-              {WINDOW_PRESETS.map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  className={`retro-seg ${windowDays === w ? 'active' : ''}`}
-                  aria-pressed={windowDays === w}
-                  onClick={() => setWindowDays(w)}
-                >
-                  {w === 0 ? t('retro.wizard.all') : `${w}d`}
-                </button>
-              ))}
-            </div>
+            <RetroRangePicker
+              report={report}
+              excludedClis={excludedClis}
+              value={range}
+              onChange={setRange}
+            />
           </div>
 
           {/* Inventário + seleção de quais CLIs entram no histórico */}
