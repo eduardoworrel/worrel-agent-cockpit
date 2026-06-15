@@ -19,6 +19,7 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/opencode"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/pidev"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/ask"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/chat"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
@@ -82,6 +83,8 @@ func main() {
 	mir := mirror.New(*dataDir)
 	b := bus.New()
 	mcp := mcpserver.New(st, b)
+	askBroker := ask.New()
+	mcp.WithAskBroker(askBroker)
 
 	cc := &claudecode.Adapter{ProjectsRoot: claudeProjectsRoot}
 	oc := &opencode.Adapter{}
@@ -178,6 +181,7 @@ func main() {
 		Spawner:   spawner,
 		Retro:     retroSvc,
 		Chat:      chatSvc,
+		Ask:       askBroker,
 	})
 
 	url := fmt.Sprintf("http://%s", ln.Addr().String())
