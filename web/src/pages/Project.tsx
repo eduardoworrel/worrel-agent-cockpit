@@ -21,6 +21,7 @@ import {
   setProjectSkillsPolicy,
   exportSkill,
   importSkill,
+  postHandoff,
 } from '../api';
 import type { Project as ProjectType, MemoryVersion, Skill, Session, Suggestion, DetectedAdapter, SkillStats } from '../api';
 import SecretsTab from '../components/SecretsTab';
@@ -46,7 +47,7 @@ export default function Project() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [project, setProject] = useState<ProjectType | null>(null);
-  const [tab, setTab] = useState<Tab>('memory');
+  const [tab, setTab] = useState<Tab>('sessions');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -271,6 +272,15 @@ export default function Project() {
     });
   }
 
+  // Retomar: cria uma nova sessão encadeada (handoff) que herda o contexto/resumo
+  // da sessão escolhida e abre o terminal dela. Funciona para encerradas e órfãs.
+  function handleResume(sessionId: string) {
+    return run(async () => {
+      const r = await postHandoff(sessionId);
+      navigate(`/sessions/${r.new_id}`);
+    });
+  }
+
   // Abre o modal de sessão já com o conteúdo da skill para injeção no primer.
   function openSkillSession(content: string, label: string) {
     setSessionSkill({ content, label });
@@ -310,7 +320,7 @@ export default function Project() {
       )}
 
       <div className="tabs">
-        {(['memory', 'skills', 'sessions', 'suggestions', 'secrets'] as Tab[]).map((tabName) => (
+        {(['sessions', 'memory', 'skills', 'suggestions', 'secrets'] as Tab[]).map((tabName) => (
           <button
             key={tabName}
             className={`tab${tab === tabName ? ' active' : ''}`}
@@ -540,11 +550,22 @@ export default function Project() {
                         : s.summary}
                     </td>
                     <td>
-                      {s.status === 'active' && (
-                        <Link to={`/sessions/${s.id}`} className="btn btn-secondary" style={{ fontSize: '0.8rem' }}>
-                          {t('sessions.openTerminal')}
-                        </Link>
-                      )}
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                        {s.status === 'active' && (
+                          <Link to={`/sessions/${s.id}`} className="btn btn-secondary" style={{ fontSize: '0.8rem' }}>
+                            {t('sessions.openTerminal')}
+                          </Link>
+                        )}
+                        <button
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.8rem' }}
+                          disabled={busy}
+                          title={t('sessions.resumeHint') as string}
+                          onClick={() => handleResume(s.id)}
+                        >
+                          ↻ {t('sessions.resume')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                   );
