@@ -13,6 +13,27 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  async function handleReset() {
+    const ok = window.confirm(
+      'Reiniciar do zero?\n\nIsto APAGA projetos, memórias, skills, pipelines, ' +
+      'sugestões, sessões, segredos, histórico de chat e configurações. ' +
+      'O esquema do banco e a chave-mestra do sistema (Keychain) são preservados.\n\n' +
+      'Esta ação é irreversível.',
+    );
+    if (!ok) return;
+    setResetting(true);
+    setError(false);
+    try {
+      const res = await fetch('/api/reset', { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      window.location.href = '/';
+    } catch {
+      setError(true);
+      setResetting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +122,18 @@ export default function Settings() {
         {error && <p className="error-banner">{t('common.actionFailed')}</p>}
         <button className="btn btn-primary" disabled={busy} onClick={handleSave}>{t('settings.save')}</button>
         {saved && <span style={{ marginLeft: '1rem', color: 'var(--green)', fontWeight: 600 }}>{t('settings.saved')}</span>}
+      </div>
+
+      <div className="card" style={{ maxWidth: '480px', marginTop: '1.5rem', borderColor: 'var(--red)' }}>
+        <h2 style={{ marginTop: 0, color: 'var(--red)' }}>Zona de perigo</h2>
+        <p style={{ marginTop: 0, color: 'var(--muted)' }}>
+          Reinicia a configuração do zero: apaga projetos, memórias, skills, pipelines,
+          sugestões, sessões, segredos, histórico de chat e configurações. Preserva o
+          esquema do banco e a chave-mestra do sistema. Ação irreversível.
+        </p>
+        <button className="btn btn-danger" disabled={resetting} onClick={handleReset}>
+          {resetting ? 'Reiniciando…' : 'Reiniciar configuração do zero'}
+        </button>
       </div>
     </div>
   );

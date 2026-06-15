@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listDirs } from '../api';
 import type { DirListing } from '../api';
@@ -6,6 +6,22 @@ import type { DirListing } from '../api';
 interface Props {
   value: string[];
   onChange: (next: string[]) => void;
+}
+
+// Quebra um caminho absoluto em segmentos clicáveis relativos ao home.
+// Devolve [{label, path}] do home (⌂) até a pasta atual.
+function crumbsFor(listing: DirListing | null): { label: string; path: string }[] {
+  if (!listing) return [];
+  const { home, path } = listing;
+  const out: { label: string; path: string }[] = [{ label: '⌂', path: home }];
+  if (path === home || !path.startsWith(home)) return out;
+  const rest = path.slice(home.length).replace(/^\/+/, '');
+  let acc = home;
+  for (const seg of rest.split('/').filter(Boolean)) {
+    acc = `${acc}/${seg}`;
+    out.push({ label: seg, path: acc });
+  }
+  return out;
 }
 
 export default function FolderPicker({ value, onChange }: Props) {
@@ -28,133 +44,118 @@ export default function FolderPicker({ value, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function add(path: string) {
-    if (!value.includes(path)) onChange([...value, path]);
+  const crumbs = useMemo(() => crumbsFor(listing), [listing]);
+
+  function toggle(path: string) {
+    if (value.includes(path)) onChange(value.filter((p) => p !== path));
+    else onChange([...value, path]);
   }
 
-  function remove(path: string) {
-    onChange(value.filter((p) => p !== path));
-  }
+  const currentPicked = !!listing && value.includes(listing.path);
+  const atHome = !!listing && listing.path === listing.home;
 
   return (
-    <div className="folder-picker">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginBottom: '0.5rem',
-          flexWrap: 'wrap',
-        }}
-      >
+    <div className="fx">
+      {/* barra de navegação: home · subir · trilha de migalhas */}
+      <div className="fx-bar">
         <button
           type="button"
-          className="btn btn-secondary"
+          className="fx-nav"
+          title={t('folderPicker.home')}
+          disabled={loading || atHome}
+          onClick={() => navigate(listing?.home)}
+        >⌂</button>
+        <button
+          type="button"
+          className="fx-nav"
+          title={t('folderPicker.up')}
           disabled={loading || !listing?.parent}
           onClick={() => navigate(listing?.parent)}
-        >
-          {t('folderPicker.up')}
-        </button>
-        <span className="mono muted" style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
-          {listing?.path ?? '…'}
-        </span>
+        >↑</button>
+        <nav className="fx-crumbs" aria-label="caminho">
+          {crumbs.map((c, i) => (
+            <span key={c.path} className="fx-crumb-wrap">
+              {i > 0 && <span className="fx-sep">/</span>}
+              <button
+                type="button"
+                className="fx-crumb"
+                disabled={loading || c.path === listing?.path}
+                onClick={() => navigate(c.path)}
+                title={c.path}
+              >{c.label}</button>
+            </span>
+          ))}
+        </nav>
       </div>
 
       {error && <p className="error-banner">{error}</p>}
 
-      <div
-        style={{
-          border: '1px solid var(--border, #ccc)',
-          borderRadius: 6,
-          maxHeight: 200,
-          overflowY: 'auto',
-          marginBottom: '0.5rem',
-        }}
-      >
+      {/* lista de pastas — estilo explorador */}
+      <div className="fx-list" role="listbox" aria-label={t('modal.dirs')}>
         {loading ? (
-          <p className="muted" style={{ padding: '0.5rem' }}>{t('common.loading')}</p>
+          <div className="fx-empty">{t('common.loading')}</div>
         ) : (listing?.entries.length ?? 0) === 0 ? (
-          <p className="muted" style={{ padding: '0.5rem' }}>{t('folderPicker.empty')}</p>
+          <div className="fx-empty">{t('folderPicker.empty')}</div>
         ) : (
-          listing!.entries.map((e) => (
-            <div
-              key={e.path}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.5rem',
-                padding: '0.25rem 0.5rem',
-              }}
-            >
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => navigate(e.path)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--ink)',
-                  textAlign: 'left',
-                  flex: 1,
-                  padding: 0,
-                }}
-                title={e.path}
+          listing!.entries.map((e) => {
+            const picked = value.includes(e.path);
+            return (
+              <div
+                key={e.path}
+                className={`fx-row${picked ? ' is-picked' : ''}`}
+                onDoubleClick={() => navigate(e.path)}
               >
-                📁 {e.name}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={value.includes(e.path)}
-                onClick={() => add(e.path)}
-              >
-                {t('folderPicker.add')}
-              </button>
-            </div>
-          ))
+                <button
+                  type="button"
+                  className="fx-check"
+                  aria-pressed={picked}
+                  title={picked ? t('folderPicker.remove') : t('folderPicker.add')}
+                  onClick={() => toggle(e.path)}
+                >{picked ? '✓' : ''}</button>
+                <button
+                  type="button"
+                  className="fx-name"
+                  onClick={() => navigate(e.path)}
+                  title={e.path}
+                >
+                  <span className="fx-icon">📁</span>
+                  <span className="fx-label">{e.name}</span>
+                </button>
+                <span className="fx-enter" aria-hidden>›</span>
+              </div>
+            );
+          })
         )}
       </div>
 
-      {listing?.path && (
+      {/* rodapé: selecionar a pasta atual + contagem */}
+      <div className="fx-foot">
         <button
           type="button"
-          className="btn btn-secondary"
-          disabled={value.includes(listing.path)}
-          onClick={() => add(listing.path)}
-          style={{ marginBottom: '0.5rem' }}
+          className="btn btn-secondary btn-sm"
+          disabled={!listing}
+          onClick={() => listing && toggle(listing.path)}
         >
-          {t('folderPicker.addCurrent')}
+          {currentPicked ? t('folderPicker.removeCurrent') : t('folderPicker.addCurrent')}
         </button>
-      )}
+        <span className="fx-hint muted">{t('folderPicker.hint')}</span>
+      </div>
 
+      {/* pastas selecionadas */}
       {value.length > 0 && (
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>
-            {t('folderPicker.linked')}
-          </label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+        <div className="fx-picked">
+          <div className="fx-picked-head">{t('folderPicker.linked')} · {value.length}</div>
+          <div className="fx-chips">
             {value.map((p) => (
-              <div
-                key={p}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.5rem',
-                }}
-              >
-                <span className="mono" style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>{p}</span>
+              <span key={p} className="fx-chip" title={p}>
+                <span className="fx-chip-path">{p}</span>
                 <button
                   type="button"
-                  className="btn btn-danger"
-                  onClick={() => remove(p)}
+                  className="fx-chip-x"
+                  onClick={() => toggle(p)}
                   aria-label={t('folderPicker.remove')}
-                >
-                  ✕
-                </button>
-              </div>
+                >✕</button>
+              </span>
             ))}
           </div>
         </div>

@@ -17,6 +17,20 @@ export default function Terminal() {
   const [contextLimit, setContextLimit] = useState(0);
   const [showHandoffBanner, setShowHandoffBanner] = useState(false);
   const [handoffBusy, setHandoffBusy] = useState(false);
+  const [killBusy, setKillBusy] = useState(false);
+
+  const handleKill = async () => {
+    if (!id || killBusy) return;
+    setKillBusy(true);
+    try {
+      await killSession(id);
+      // sessão encerrada no backend → sai do terminal (o cleanup do effect
+      // fecha o WebSocket). Volta para a lista de sessões.
+      navigate('/sessions');
+    } catch {
+      setKillBusy(false);
+    }
+  };
 
   useEvents((ev) => {
     if (!id) return;
@@ -92,12 +106,20 @@ export default function Terminal() {
       }
     });
 
-    const onWinResize = () => { fit.fit(); sendResize(); };
-    window.addEventListener('resize', onWinResize);
+    const refit = () => { fit.fit(); sendResize(); };
+    window.addEventListener('resize', refit);
+
+    // Re-ajusta o número de linhas sempre que o container muda de tamanho
+    // (header/banner aparecendo, layout assentando após o mount, etc.).
+    // Sem isso o xterm mantém a contagem inicial de linhas e o final do
+    // terminal fica fora da área visível, sem rolagem.
+    const ro = new ResizeObserver(() => refit());
+    ro.observe(ref.current);
 
     return () => {
       disposed = true;
-      window.removeEventListener('resize', onWinResize);
+      window.removeEventListener('resize', refit);
+      ro.disconnect();
       dataDisp.dispose();
       ws.close();
       term.dispose();
@@ -107,13 +129,13 @@ export default function Terminal() {
   const contextPct = contextLimit > 0 ? Math.round(contextUsed * 100 / contextLimit) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <div style={{
         padding: '12px 20px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
         background: 'var(--surface)', borderBottom: '1px solid var(--line)',
       }}>
         <strong style={{ color: 'var(--ink)', fontFamily: 'var(--display)' }}>{t('terminal.title')}</strong>
-        <button className="btn btn-danger btn-sm" onClick={() => id && killSession(id)}>{t('terminal.kill')}</button>
+        <button className="btn btn-danger btn-sm" disabled={killBusy} onClick={handleKill}>{t('terminal.kill')}</button>
         {contextLimit > 0 && (
           <span className="mono" style={{ fontSize: '0.78rem', color: 'var(--muted)', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             {t('sessions.contextBar', { used: contextUsed, limit: contextLimit })}
@@ -147,7 +169,7 @@ export default function Terminal() {
           </button>
         </div>
       )}
-      <div ref={ref} style={{ flex: 1, background: '#191510', padding: 12 }} />
+      <div ref={ref} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: '#191510', padding: 12 }} />
     </div>
   );
 }

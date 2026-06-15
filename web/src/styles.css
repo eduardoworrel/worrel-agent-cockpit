@@ -990,3 +990,174 @@ tr:last-child td { border-bottom: none; }
 /* Chat — lista de CLIs do escopo de busca */
 .chat-cli-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .chat-cli-list li { min-width: 0; }
+
+/* ============================================================
+   File explorer (FolderPicker) — navegação séria estilo Finder
+   ============================================================ */
+.fx {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* barra de navegação */
+.fx-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface-warm);
+  border-bottom: 1px solid var(--line);
+}
+.fx-nav {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.fx-nav:hover:not(:disabled) { background: var(--fill-sky); border-color: var(--sky); }
+.fx-nav:disabled { opacity: 0.4; cursor: default; }
+
+/* trilha de migalhas */
+.fx-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  min-width: 0;
+  gap: 2px;
+  scrollbar-width: thin;
+}
+.fx-crumb-wrap { display: inline-flex; align-items: center; flex: none; }
+.fx-sep { color: var(--faint); padding: 0 2px; font-size: 0.8rem; }
+.fx-crumb {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--sky);
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fx-crumb:hover:not(:disabled) { background: var(--fill-sky); }
+.fx-crumb:disabled { color: var(--ink); cursor: default; font-weight: 600; }
+
+/* lista de pastas */
+.fx-list {
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+.fx-empty { padding: 18px 12px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+.fx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 2px 6px;
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+.fx-row:last-child { border-bottom: none; }
+.fx-row:hover { background: var(--surface-sunk); }
+.fx-row.is-picked { background: var(--fill-sky); }
+
+.fx-check {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--surface);
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.fx-check[aria-pressed="true"] { background: var(--sky); border-color: var(--sky); color: #fff; }
+
+.fx-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 7px 0;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+.fx-icon { flex: none; font-size: 0.95rem; }
+.fx-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fx-enter { flex: none; color: var(--faint); font-size: 1.1rem; line-height: 1; padding-right: 4px; }
+.fx-row:hover .fx-enter { color: var(--sky); }
+
+/* rodapé */
+.fx-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-warm);
+  border-top: 1px solid var(--line);
+}
+.fx-hint { font-size: 0.75rem; }
+
+/* selecionadas */
+.fx-picked { padding: 10px; border-top: 1px solid var(--line); background: var(--surface); }
+.fx-picked-head { font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+.fx-chips { display: flex; flex-direction: column; gap: 4px; }
+.fx-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--fill-cream);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 4px 4px 4px 8px;
+}
+.fx-chip-path {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.fx-chip-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.fx-chip-x:hover { color: var(--red); background: var(--fill-pink); }
