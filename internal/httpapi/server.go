@@ -6,6 +6,7 @@ import (
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/ask"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/chat"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
@@ -33,6 +34,7 @@ type Deps struct {
 	Spawner   Spawner               // optional; nil = handoff indisponível
 	Retro     *retro.Service        // fase 8: análise retroativa; nil = indisponível
 	Chat      *chat.Service         // chat de destilação; nil = chat indisponível
+	Ask       *ask.Broker           // pedidos de confirmação/escolha (balões); nil = indisponível
 }
 
 type Server struct {
@@ -70,6 +72,7 @@ func (s *Server) routes() {
 	s.routesPipelines()
 	s.routesChat()
 	s.routesPrompts()
+	s.routesAsks()
 	s.routesReset()
 	s.routesWS()
 	s.routesStatic()
