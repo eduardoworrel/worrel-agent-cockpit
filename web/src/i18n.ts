@@ -156,6 +156,7 @@ i18next
               providersTitle: 'Providers — grant history access',
               permissionHint: 'Enable the providers whose history Worrel may analyze. The date range is built from the granted ones.',
               rangeLocked: 'Grant at least one provider to choose the period.',
+              providerLocked: 'not granted',
             },
             batch: {
               title: 'Batch review',
@@ -591,6 +592,7 @@ i18next
               providersTitle: 'Provedores — libere o histórico',
               permissionHint: 'Ative os provedores cujo histórico o Worrel pode analisar. O período é montado a partir dos liberados.',
               rangeLocked: 'Libere ao menos um provedor para escolher o período.',
+              providerLocked: 'não liberado',
             },
             batch: {
               title: 'Revisão em lote',

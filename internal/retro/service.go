@@ -45,13 +45,20 @@ func New(s *store.Store, eng *distill.Engine, applier *apply.Applier, b *bus.Bus
 	}
 }
 
-func (svc *Service) Inventory(since time.Time) (*InventoryReport, error) {
-	return svc.inv.Scan(since)
+// Providers lista os provedores disponíveis sem varrer o histórico.
+func (svc *Service) Providers() []string {
+	return svc.inv.Providers()
+}
+
+// Inventory varre o histórico. clis (se não-vazio) restringe aos provedores
+// explicitamente aprovados — o scan só roda após aprovação na UI.
+func (svc *Service) Inventory(since time.Time, clis []string) (*InventoryReport, error) {
+	return svc.inv.ScanProgress(since, clis, nil)
 }
 
 // InventoryProgress roda o scan reportando progresso real por CLI via emit.
-func (svc *Service) InventoryProgress(since time.Time, emit func(cli string, done, total int)) (*InventoryReport, error) {
-	return svc.inv.ScanProgress(since, emit)
+func (svc *Service) InventoryProgress(since time.Time, clis []string, emit func(cli string, done, total int)) (*InventoryReport, error) {
+	return svc.inv.ScanProgress(since, clis, emit)
 }
 
 // Plan abre (ou reusa) uma run para o escopo. A reutilização evita runs duplicadas

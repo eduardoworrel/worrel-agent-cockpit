@@ -40,19 +40,36 @@ type progressObserver interface {
 	DiscoverSessionsProgress(since time.Time, onProgress func(done, total int)) ([]adapter.ExternalSession, error)
 }
 
-// Scan varre os históricos a partir de `since` (zero = tudo). 100% local.
-func (in *Inventory) Scan(since time.Time) (*InventoryReport, error) {
-	return in.ScanProgress(since, nil)
+// Providers lista os IDs dos observadores disponíveis SEM varrer o histórico —
+// permite à UI mostrar os provedores e exigir aprovação explícita antes do scan.
+func (in *Inventory) Providers() []string {
+	out := make([]string, 0, len(in.obs))
+	for _, o := range in.obs {
+		out = append(out, o.ID())
+	}
+	return out
 }
 
-// ScanProgress é como Scan mas reporta progresso real por CLI. `emit` (se não-nil)
-// é chamado durante o scan com (cli, done, total) contando ARQUIVOS de histórico
-// processados naquele observador. Cai no caminho síncrono quando o observador não
-// implementa progressObserver.
-func (in *Inventory) ScanProgress(since time.Time, emit func(cli string, done, total int)) (*InventoryReport, error) {
+// Scan varre os históricos a partir de `since` (zero = tudo). 100% local.
+func (in *Inventory) Scan(since time.Time) (*InventoryReport, error) {
+	return in.ScanProgress(since, nil, nil)
+}
+
+// ScanProgress é como Scan mas reporta progresso real por CLI. `clis` (se não-vazio)
+// restringe o scan aos observadores cujo ID está na lista — usado para varrer só os
+// provedores explicitamente aprovados. `emit` (se não-nil) é chamado durante o scan
+// com (cli, done, total) contando ARQUIVOS de histórico processados.
+func (in *Inventory) ScanProgress(since time.Time, clis []string, emit func(cli string, done, total int)) (*InventoryReport, error) {
+	allow := map[string]bool{}
+	for _, c := range clis {
+		allow[c] = true
+	}
 	rep := &InventoryReport{PerCLI: map[string]*CLIInventory{}}
 	folderIdx := map[string]*FolderGroup{}
 	for _, o := range in.obs {
+		if len(allow) > 0 && !allow[o.ID()] {
+			continue
+		}
 		var ext []adapter.ExternalSession
 		var err error
 		if po, ok := o.(progressObserver); ok && emit != nil {

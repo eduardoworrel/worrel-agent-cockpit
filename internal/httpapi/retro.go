@@ -16,16 +16,24 @@ func (s *Server) routesRetro() {
 	}
 	svc := s.deps.Retro
 
-	// Estágio 0: inventário local (sem LLM).
+	// Lista os provedores disponíveis SEM varrer o histórico (a UI exige
+	// aprovação explícita por provedor antes de qualquer scan).
+	s.mux.HandleFunc("GET /api/retro/providers", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, svc.Providers())
+	})
+
+	// Estágio 0: inventário local (sem LLM). clis restringe aos provedores
+	// aprovados; vazio varre todos (compat).
 	s.mux.HandleFunc("POST /api/retro/inventory", func(w http.ResponseWriter, r *http.Request) {
 		in, _ := decode[struct {
-			WindowDays int `json:"window_days"`
+			WindowDays int      `json:"window_days"`
+			Clis       []string `json:"clis"`
 		}](r)
 		since := time.Time{}
 		if in.WindowDays > 0 {
 			since = time.Now().AddDate(0, 0, -in.WindowDays)
 		}
-		rep, err := svc.Inventory(since)
+		rep, err := svc.Inventory(since, in.Clis)
 		if err != nil {
 			writeErr(w, 500, err.Error())
 			return
@@ -39,12 +47,14 @@ func (s *Server) routesRetro() {
 	//          retro.inventory.done {report}
 	s.mux.HandleFunc("POST /api/retro/inventory/start", func(w http.ResponseWriter, r *http.Request) {
 		in, _ := decode[struct {
-			WindowDays int `json:"window_days"`
+			WindowDays int      `json:"window_days"`
+			Clis       []string `json:"clis"`
 		}](r)
 		since := time.Time{}
 		if in.WindowDays > 0 {
 			since = time.Now().AddDate(0, 0, -in.WindowDays)
 		}
+		clis := in.Clis
 		b := s.deps.Bus
 		go func() {
 			var mu sync.Mutex
@@ -72,7 +82,7 @@ func (s *Server) routesRetro() {
 					"overall_done": od, "overall_total": ot,
 				}})
 			}
-			rep, err := svc.InventoryProgress(since, emit)
+			rep, err := svc.InventoryProgress(since, clis, emit)
 			if b == nil {
 				return
 			}

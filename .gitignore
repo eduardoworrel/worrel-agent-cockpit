@@ -17,3 +17,6 @@ npm/platforms/*/bin/
 
 # gate runner artifacts
 .gates/
+
+# brainstorm mockups (visual companion)
+.superpowers/

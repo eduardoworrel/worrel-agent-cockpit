@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useEvents } from '../useEvents';
 import type { WsEvent } from '../useEvents';
 import {
-  inventory, createRun, cluster, listClusters, approveCluster, discardCluster,
+  inventory, listRetroProviders, createRun, cluster, listClusters, approveCluster, discardCluster,
   mergeClusters, startRun, pauseRun, resumeRun, cancelRun, getRun, listAdapterModels,
   type InventoryReport, type RetroRun, type RetroCluster, type Scope,
   type RetroRunProgress,
@@ -57,8 +57,11 @@ function Stepper({ active }: { active: StageKey }) {
 
 export default function RetroWizard() {
   const { t } = useTranslation();
+  // report ACUMULA só os provedores varridos (após aprovação). Começa vazio.
   const [report, setReport] = useState<InventoryReport | null>(null);
-  const [loadingInventory, setLoadingInventory] = useState(true);
+  const [providers, setProviders] = useState<string[]>([]);
+  const [scanning, setScanning] = useState<Record<string, boolean>>({});
+  const [estByCli, setEstByCli] = useState<Record<string, number>>({});
   const [range, setRange] = useState<RangeValue>({ since: 0, until: 0 });
   const [depth, setDepth] = useState<'completa' | 'leve'>('completa');
   const [provider, setProvider] = useState('');
@@ -67,9 +70,8 @@ export default function RetroWizard() {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelFreeText, setModelFreeText] = useState(false);
   const [budgetPerHour, setBudgetPerHour] = useState(0);
-  // Permissões por provedor: default TUDO desligado (excluído) — o usuário libera
-  // explicitamente cada CLI cujo histórico o Worrel pode analisar. Só depois o
-  // range aparece, derivado dos provedores liberados.
+  // Permissões por provedor: default TUDO desligado. NADA é varrido até o usuário
+  // liberar (aprovar) explicitamente um provedor — aí varremos só aquele.
   const [excludedClis, setExcludedClis] = useState<Record<string, boolean>>({});
   const [run, setRun] = useState<RetroRun | null>(null);
   const [clusters, setClusters] = useState<RetroCluster[]>([]);
@@ -78,28 +80,42 @@ export default function RetroWizard() {
   const [clustering, setClustering] = useState(false);
   const [progress, setProgress] = useState<RetroRunProgress | null>(null);
 
-  const refreshInventory = useCallback(async () => {
-    setLoadingInventory(true);
+  // Carrega só a LISTA de provedores (sem varrer histórico), todos desligados.
+  useEffect(() => {
+    listRetroProviders()
+      .then((ps) => {
+        setProviders(ps);
+        setExcludedClis((prev) => {
+          if (Object.keys(prev).length > 0) return prev;
+          const off: Record<string, boolean> = {};
+          ps.forEach((c) => { off[c] = true; });
+          return off;
+        });
+      })
+      .catch((e) => setErr(String(e)));
+  }, []);
+
+  // toggleProvider libera/revoga um provedor. Ao LIBERAR pela 1ª vez, varre SÓ
+  // aquele provedor e mescla o resultado no report.
+  async function toggleProvider(cli: string, enable: boolean) {
+    setExcludedClis((m) => ({ ...m, [cli]: !enable }));
+    if (!enable || report?.per_cli?.[cli]) return;
+    setScanning((m) => ({ ...m, [cli]: true }));
     try {
-      const rep = await inventory(0); // varre tudo; o recorte é feito no cliente via range
-      setReport(rep);
-      // Inicializa as permissões como TODAS desligadas (excluídas) na 1ª carga.
-      setExcludedClis((prev) => {
-        if (Object.keys(prev).length > 0) return prev;
-        const off: Record<string, boolean> = {};
-        Object.keys(rep.per_cli).forEach((c) => { off[c] = true; });
-        return off;
-      });
+      const rep = await inventory(0, [cli]);
+      const ci = rep.per_cli?.[cli];
+      setReport((prev) => ({
+        per_cli: { ...(prev?.per_cli ?? {}), ...(ci ? { [cli]: ci } : {}) },
+        folders: [...(prev?.folders ?? []), ...(rep.folders ?? [])],
+        estimated_invocations: 0,
+      }));
+      setEstByCli((m) => ({ ...m, [cli]: rep.estimated_invocations }));
     } catch (e) {
       setErr(String(e));
     } finally {
-      setLoadingInventory(false);
+      setScanning((m) => ({ ...m, [cli]: false }));
     }
-  }, []);
-
-  useEffect(() => {
-    refreshInventory();
-  }, [refreshInventory]);
+  }
 
   // Busca modelos do provider; degrada para texto livre se vazio/404.
   useEffect(() => {
@@ -135,7 +151,7 @@ export default function RetroWizard() {
 
   async function openRun() {
     const scope: Scope = {
-      clis: Object.keys(report?.per_cli ?? {}).filter((c) => !excludedClis[c]),
+      clis: providers.filter((c) => !excludedClis[c]),
       dirs: [],
       window_days: 0,
       since: range.since,
@@ -182,7 +198,7 @@ export default function RetroWizard() {
 
   async function execute() {
     if (!run) return;
-    const invocations = report?.estimated_invocations ?? '?';
+    const invocations = estimate || '?';
     const budget = budgetPerHour === 0 ? t('retro.wizard.unlimited') : String(budgetPerHour);
     const depthLabel = depth === 'completa' ? t('retro.wizard.depthFull') : t('retro.wizard.depthLight');
     if (!window.confirm(t('retro.wizard.confirmRun', { invocations, budget, depth: depthLabel }))) return;
@@ -193,8 +209,8 @@ export default function RetroWizard() {
   const status = run?.status ?? 'inventoried';
   const stage = stageFromStatus(run);
 
-  const cliEntries = Object.entries(report?.per_cli ?? {});
-  const enabledClis = cliEntries.filter(([c]) => !excludedClis[c]);
+  const enabledClis = providers.filter((c) => !excludedClis[c]);
+  const estimate = enabledClis.reduce((sum, c) => sum + (estByCli[c] ?? 0), 0);
 
   return (
     <div className="retro-wizard">
@@ -210,42 +226,48 @@ export default function RetroWizard() {
             <p className="muted">{t('retro.wizard.scopeSubtitle')}</p>
           </header>
 
-          {/* 1º) Provedores — permissões: libere o histórico a analisar (default OFF) */}
+          {/* 1º) Provedores — permissões: libere o histórico a analisar (default OFF).
+              NADA é varrido antes de liberar; ao liberar, varremos só aquele provedor. */}
           <div className="retro-field">
             <span className="retro-field-label">{t('retro.wizard.providersTitle')}</span>
-            {loadingInventory ? (
-              <div className="retro-inventory-panel muted">
-                <span className="pulse">{t('retro.wizard.inventoryLoading')}</span>
-              </div>
-            ) : cliEntries.length === 0 ? (
+            {providers.length === 0 ? (
               <div className="retro-inventory-panel muted">{t('retro.wizard.inventoryEmpty')}</div>
             ) : (
               <div className="retro-inventory-panel">
                 <ul className="retro-inventory">
-                  {cliEntries.map(([cli, ci]) => (
-                    <li key={cli}>
-                      <label className="retro-inv-toggle">
-                        <input
-                          type="checkbox"
-                          checked={!excludedClis[cli]}
-                          onChange={(e) =>
-                            setExcludedClis((m) => ({ ...m, [cli]: !e.target.checked }))
-                          }
-                        />
-                        <span className="retro-inv-cli mono">{cli === 'pidev' ? 'pi' : cli}</span>
-                      </label>
-                      <span className="retro-inv-meta">
-                        {ci.sessions} {t('retro.wizard.sessions')}
-                        <span className="faint"> · {ci.already_known} {t('retro.wizard.known')}</span>
-                      </span>
-                    </li>
-                  ))}
+                  {providers.map((cli) => {
+                    const ci = report?.per_cli?.[cli];
+                    return (
+                      <li key={cli}>
+                        <label className="retro-inv-toggle">
+                          <input
+                            type="checkbox"
+                            checked={!excludedClis[cli]}
+                            onChange={(e) => toggleProvider(cli, e.target.checked)}
+                          />
+                          <span className="retro-inv-cli mono">{cli === 'pidev' ? 'pi' : cli}</span>
+                        </label>
+                        <span className="retro-inv-meta">
+                          {scanning[cli] ? (
+                            <span className="faint pulse">{t('retro.wizard.inventoryLoading')}</span>
+                          ) : ci ? (
+                            <>
+                              {ci.sessions} {t('retro.wizard.sessions')}
+                              <span className="faint"> · {ci.already_known} {t('retro.wizard.known')}</span>
+                            </>
+                          ) : (
+                            <span className="faint">{t('retro.wizard.providerLocked')}</span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <span className="retro-field-hint">{t('retro.wizard.permissionHint')}</span>
-                {report && enabledClis.length > 0 && (
+                {estimate > 0 && (
                   <div className="retro-estimate">
                     <span className="muted">{t('retro.wizard.estimate')}</span>
-                    <strong className="mono">{report.estimated_invocations}</strong>
+                    <strong className="mono">{estimate}</strong>
                   </div>
                 )}
               </div>

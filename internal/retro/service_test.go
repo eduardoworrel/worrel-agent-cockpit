@@ -78,7 +78,7 @@ func flow(t *testing.T, s *store.Store, obs Observer) *store.RetroRun {
 	applier := apply.New(s, mirror.New(t.TempDir()), b)
 	svc := New(s, eng, applier, b, []Observer{obs}, nil)
 
-	_, err := svc.Inventory(time.Time{})
+	_, err := svc.Inventory(time.Time{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
