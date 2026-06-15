@@ -45,6 +45,13 @@ func (s *Store) CreateSession(sess *Session) (*Session, error) {
 	if sess.Status == "" {
 		sess.Status = "active"
 	}
+	// Sessões in-app (wrapper) são spawnadas com --session-id = sess.ID, logo o
+	// ref externo do CLI é o próprio id. Marcá-lo aqui (a) deduplica o importer
+	// — que casa por external_ref e deixa de criar uma gêmea "observed" — e
+	// (b) permite ao handoff resolver o .jsonl da sessão para ler o transcript.
+	if sess.Mode == "wrapper" && sess.ExternalRef == nil {
+		sess.ExternalRef = &sess.ID
+	}
 	sess.StartedAt = now()
 	_, err := s.db.Exec(`INSERT INTO sessions
 		(id, project_id, adapter, external_ref, mode, title, status, continues, mcp_token, started_at, workspace_dir, source_dir)

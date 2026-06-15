@@ -147,7 +147,16 @@ func (a *Adapter) scanSessionMeta(path string) (adapter.ExternalSession, bool) {
 }
 
 func (a *Adapter) ReadTranscript(ref adapter.SessionRef) ([]adapter.TranscriptEvent, error) {
-	f, err := os.Open(ref.Path)
+	// Resolve o caminho por external ref quando o Path não vem dado (sessões
+	// in-app: o .jsonl tem o nome do session id == ExternalRef). Espelha a
+	// resolução de ContextUsage.
+	path := ref.Path
+	if path == "" && ref.ExternalRef != "" {
+		if matches, _ := filepath.Glob(filepath.Join(a.projectsRoot(), "*", ref.ExternalRef+".jsonl")); len(matches) > 0 {
+			path = matches[0]
+		}
+	}
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}

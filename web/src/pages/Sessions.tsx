@@ -9,6 +9,7 @@ import {
   promoteSession,
 } from '../api';
 import type { Session, Project } from '../api';
+import { sessionName, ProviderBadge } from '../session';
 import { useEvents } from '../useEvents';
 import type { WsEvent } from '../useEvents';
 
@@ -202,6 +203,10 @@ export default function Sessions() {
               <div key={s.id} className="card" style={{ position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
                   <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <strong style={{ color: 'var(--ink)' }}>{sessionName(s)}</strong>
+                      <ProviderBadge adapter={s.adapter} />
+                    </div>
                     {proj ? (
                       <strong>
                         <Link to={`/projects/${proj.id}`} style={{ color: 'var(--orange-ink)' }}>{proj.name}</Link>
@@ -228,7 +233,7 @@ export default function Sessions() {
                       </div>
                     )}
                     <div style={{ marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                      {t('sessions.adapter')}: {s.adapter} &nbsp;·&nbsp; {t('sessions.contextBar', { used: s.context_used ?? '–', limit: s.context_limit ?? '–' })} ({contextPct(s)})
+                      {t('sessions.contextBar', { used: s.context_used ?? '–', limit: s.context_limit ?? '–' })} ({contextPct(s)})
                     </div>
                   </div>
 

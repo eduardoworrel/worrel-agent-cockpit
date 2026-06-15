@@ -64,7 +64,7 @@ export default function NewSessionDropdown({ projectId, anchor, onClose, onStart
     <div className="ns-menu" ref={ref} style={{ top: anchor.top, left: anchor.left }} role="menu">
       {phase === 'seed' ? (
         <>
-          <button className="ns-item" role="menuitem" onClick={() => pickSeed('')}>memory</button>
+          <button className="ns-item" role="menuitem" onClick={() => pickSeed('')}>new</button>
           {projectId && skills.map((s, i) => (
             <button key={s.id} className="ns-item" role="menuitem" onClick={() => pickSeed(s.id)}>
               <span>{s.name}</span>

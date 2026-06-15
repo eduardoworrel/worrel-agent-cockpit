@@ -117,29 +117,12 @@ func main() {
 		headless = h
 	}
 	eng := distill.New(st, headless, b)
-	imp := distill.NewImporter(st, b)
-	// Observadores que sabem ler histórico (DiscoverSessions/ReadTranscript).
-	importers := []struct {
-		name string
-		obs  distill.Observer
-	}{{"claude-code", cc}, {"opencode", oc}, {"gemini", gem}, {"codex", cx}, {"pidev", pd}}
-	runImport := func() {
-		for _, im := range importers {
-			if n, err := imp.Import(im.obs); err != nil {
-				log.Printf("importer %s: %v", im.name, err)
-			} else if n > 0 {
-				log.Printf("importer: %d sessão(ões) importada(s) do %s", n, im.name)
-			}
-		}
-	}
-	watchRoot := cc.ProjectsRootOrDefault()
-	if w, err := distill.NewWatcher(watchRoot, 500*time.Millisecond, func() { runImport() }); err == nil {
-		go w.Run()
-	}
-	// import silencioso no boot (não bloqueia).
-	// Varredura de escopo (scope-distillation) roda sob demanda via POST /api/sweep,
-	// não mais automaticamente no boot — evita sugestões create_project não solicitadas.
-	go runImport()
+	// O cockpit lida exclusivamente com sessões iniciadas DENTRO do app (wrapper).
+	// O histórico externo do usuário (todas as sessões de CLI no disco) só é tocado
+	// pelo fluxo de análise retroativa (retro), explícito e opt-in por provedor —
+	// NÃO há mais import automático no boot nem watcher de filesystem vasculhando
+	// ~/.claude/projects. (A varredura de escopo já havia saído do boot pelo mesmo
+	// motivo: evitar ações não solicitadas sobre dados que não são do app.)
 
 	mcp.SetVault(vlt)
 
@@ -149,7 +132,10 @@ func main() {
 	for _, adID := range []string{"claude-code", "opencode"} {
 		if ad, ok := reg.Get(adID); ok && ad.Capabilities().Headless {
 			sum := handoff.NewAdapterSummarizer(ad)
-			handoffGen = handoff.New(st, sum)
+			// O mesmo adaptador lê o transcript ao vivo do .jsonl da sessão in-app
+			// (que não é ingerida em transcript_events) — sem isso o resumo de
+			// handoff de uma sessão viva sairia vazio.
+			handoffGen = handoff.New(st, sum).WithLiveReader(ad)
 			mcp.WithSummaryGenerator(handoffGen)
 			spawner = &wrapperSpawner{store: st, wrapper: wm, workspace: wsManager, adapter: ad, reg: reg, port: port}
 			break

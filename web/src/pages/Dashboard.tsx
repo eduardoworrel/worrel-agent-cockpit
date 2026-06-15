@@ -8,6 +8,7 @@ import {
   listSessions,
 } from '../api';
 import type { Project, Session } from '../api';
+import { sessionName, ProviderBadge } from '../session';
 import { listRuns, startInventory } from '../retroApi';
 import type { InventoryReport } from '../retroApi';
 import { FanHero } from '../components/Fan';
@@ -219,9 +220,10 @@ export default function Dashboard({ onPendingCount }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {sessions.map((s) => (
               <Link key={s.id} to={`/sessions/${s.id}`} className="card clickable" style={{ padding: '12px 16px' }}>
-                <strong style={{ color: 'var(--ink)' }}>{s.title || s.id}</strong>
-                <span className="mono muted" style={{ marginLeft: 12, fontSize: '0.8rem' }}>
-                  {s.adapter} / {s.mode}
+                <strong style={{ color: 'var(--ink)' }}>{sessionName(s)}</strong>
+                <span style={{ marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <ProviderBadge adapter={s.adapter} />
+                  <span className="mono muted" style={{ fontSize: '0.8rem' }}>{s.mode}</span>
                 </span>
               </Link>
             ))}

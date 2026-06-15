@@ -9,6 +9,7 @@ import (
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/wrapper"
 )
@@ -25,7 +26,9 @@ func (s *Server) routesSessions() {
 	// GET /api/sessions already registered in projects.go (routesProjects)
 	s.mux.HandleFunc("POST /api/projects/{id}/sessions", s.handleCreateSession)
 	s.mux.HandleFunc("POST /api/sessions/{id}/kill", s.handleKillSession)
+	s.mux.HandleFunc("POST /api/sessions/{id}/distill", s.handleDistillSession)
 	s.mux.HandleFunc("GET /api/sessions/{id}/term", s.handleTerm)
+	s.mux.HandleFunc("POST /api/sessions/{id}/paste-image", s.handlePasteImage)
 	s.mux.HandleFunc("POST /api/sessions", s.handleCreateFreeSession)
 	s.mux.HandleFunc("POST /api/sessions/{id}/classify", s.handleClassifySession)
 	s.mux.HandleFunc("POST /api/sessions/{id}/promote", s.handlePromoteSession)
@@ -182,6 +185,33 @@ func (s *Server) handleKillSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(204)
+}
+
+// handleDistillSession roda a extração de aprendizados (skills/memórias) sobre
+// UMA sessão sob demanda — tipicamente disparada pelo usuário ao encerrar a
+// sessão. Reusa o motor de distill (mesma fase 1/2 da varredura), criando
+// sugestões PENDENTES que o usuário aprova no drawer. Idempotente o bastante:
+// re-rodar uma sessão já analisada pode apenas não gerar nada novo.
+func (s *Server) handleDistillSession(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Distiller == nil {
+		writeErr(w, http.StatusServiceUnavailable, "extração indisponível")
+		return
+	}
+	id := r.PathValue("id")
+	sess, err := s.deps.Store.GetSession(id)
+	if err != nil {
+		notFoundOr500(w, err, "sessão não encontrada")
+		return
+	}
+	res, err := s.deps.Distiller.AnalyzeBatchDepth(
+		r.Context(), sess.ProjectID, []string{id},
+		distill.AnalyzeOpts{Origin: "session.ended"},
+	)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (s *Server) handleTerm(w http.ResponseWriter, r *http.Request) {

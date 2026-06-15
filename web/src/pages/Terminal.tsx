@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { killSession, postHandoff } from '../api';
+import { killSession, postHandoff, pasteImage } from '../api';
 import { useEvents } from '../useEvents';
 import '@xterm/xterm/css/xterm.css';
 
@@ -62,6 +62,7 @@ export default function Terminal() {
 
   useEffect(() => {
     if (!ref.current || !id) return;
+    const el = ref.current;
     const term = new XTerm({
       fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
       fontSize: 13,
@@ -106,6 +107,27 @@ export default function Terminal() {
       }
     });
 
+    // Colar imagem (Ctrl/Cmd+V): o xterm só cola texto e o clipboard do browser
+    // não chega ao PTY no servidor. Interceptamos um item image/* do clipboard,
+    // subimos os bytes (que o servidor salva no workspace) e injetamos o caminho
+    // resultante no stdin — a CLI (ex. claude-code) anexa a imagem pelo path.
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((it) => it.type.startsWith('image/'));
+      if (!item) return; // texto normal → deixa o xterm cuidar
+      e.preventDefault();
+      e.stopPropagation();
+      const blob = item.getAsFile();
+      if (!blob) return;
+      pasteImage(id, blob)
+        .then(({ path }) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'stdin', data: path }));
+          }
+        })
+        .catch(() => note(t('terminal.pasteImageError')));
+    };
+    el.addEventListener('paste', onPaste, true);
+
     const refit = () => { fit.fit(); sendResize(); };
     window.addEventListener('resize', refit);
 
@@ -114,11 +136,12 @@ export default function Terminal() {
     // Sem isso o xterm mantém a contagem inicial de linhas e o final do
     // terminal fica fora da área visível, sem rolagem.
     const ro = new ResizeObserver(() => refit());
-    ro.observe(ref.current);
+    ro.observe(el);
 
     return () => {
       disposed = true;
       window.removeEventListener('resize', refit);
+      el.removeEventListener('paste', onPaste, true);
       ro.disconnect();
       dataDisp.dispose();
       ws.close();

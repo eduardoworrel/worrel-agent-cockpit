@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
 
@@ -18,13 +19,28 @@ type Summarizer interface {
 	Summarize(ctx context.Context, prompt string) (string, error)
 }
 
+// LiveReader lê o transcript direto do arquivo do CLI. Sessões in-app (wrapper)
+// NÃO têm seu transcript ingerido em transcript_events (só o importer de
+// histórico externo faz isso); logo o handoff de uma sessão viva precisa ler o
+// .jsonl ao vivo. *adapter.Adapter satisfaz esta interface (tem ReadTranscript).
+type LiveReader interface {
+	ReadTranscript(ref adapter.SessionRef) ([]adapter.TranscriptEvent, error)
+}
+
 type Generator struct {
 	store      *store.Store
 	summarizer Summarizer
+	live       LiveReader
 }
 
 func New(s *store.Store, sum Summarizer) *Generator {
 	return &Generator{store: s, summarizer: sum}
+}
+
+// WithLiveReader liga a leitura ao vivo do transcript (sessões in-app). Opcional.
+func (g *Generator) WithLiveReader(r LiveReader) *Generator {
+	g.live = r
+	return g
 }
 
 // PromptHeader é o cabeçalho fixo com as 6 seções obrigatórias (spec §9).
@@ -49,6 +65,15 @@ func (g *Generator) GenerateSummary(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", err
 	}
+	// Sessão in-app não tem eventos em transcript_events: lê o .jsonl ao vivo.
+	if len(events) == 0 && g.live != nil {
+		if sess, err := g.store.GetSession(sessionID); err == nil {
+			ref := adapter.SessionRef{Adapter: sess.Adapter, ExternalRef: externalRef(sess)}
+			if live, err := g.live.ReadTranscript(ref); err == nil {
+				events = fromAdapterEvents(sessionID, live)
+			}
+		}
+	}
 	prompt := PromptHeader + normalizeTranscript(events)
 	out, err := g.summarizer.Summarize(ctx, prompt)
 	if err != nil {
@@ -58,6 +83,28 @@ func (g *Generator) GenerateSummary(ctx context.Context, sessionID string) (stri
 		return "", err
 	}
 	return out, nil
+}
+
+// externalRef devolve o ref do CLI para resolver o transcript. Para sessões
+// in-app é o próprio id (CreateSession já o grava); cai no id como defesa para
+// linhas antigas com external_ref nulo.
+func externalRef(sess *store.Session) string {
+	if sess.ExternalRef != nil && *sess.ExternalRef != "" {
+		return *sess.ExternalRef
+	}
+	return sess.ID
+}
+
+func fromAdapterEvents(sessionID string, evs []adapter.TranscriptEvent) []*store.TranscriptEvent {
+	out := make([]*store.TranscriptEvent, 0, len(evs))
+	for i, e := range evs {
+		out = append(out, &store.TranscriptEvent{
+			SessionID: sessionID, Seq: int64(i + 1),
+			Role: e.Role, Kind: e.Kind, Content: e.Content,
+			TokensIn: e.TokensIn, TokensOut: e.TokensOut, CreatedAt: e.CreatedAt,
+		})
+	}
+	return out
 }
 
 func normalizeTranscript(events []*store.TranscriptEvent) string {

@@ -273,6 +273,35 @@ export function killSession(id: string): Promise<void> {
   return req(`/sessions/${id}/kill`, { method: 'POST' });
 }
 
+// DistillResult espelha distill.Result do backend.
+export interface DistillResult {
+  sessions: number;
+  created: number;
+  duplicates: number;
+  dropped: number;
+  screened_out: number;
+  proactive: number;
+  auto_applied: number;
+}
+
+// distillSession extrai aprendizados (skills/memórias) de UMA sessão sob demanda;
+// cria sugestões pendentes que o usuário aprova no drawer.
+export function distillSession(id: string): Promise<DistillResult> {
+  return req(`/sessions/${id}/distill`, { method: 'POST' });
+}
+
+// pasteImage envia os bytes de uma imagem colada no terminal e recebe o
+// caminho absoluto onde o servidor a salvou (dentro do workspace da sessão).
+export async function pasteImage(id: string, blob: Blob): Promise<{ path: string }> {
+  const res = await fetch(`${BASE}/sessions/${id}/paste-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 export function postHandoff(id: string): Promise<{ old_id: string; new_id: string; summary: string }> {
   return req(`/sessions/${id}/handoff`, { method: 'POST' });
 }

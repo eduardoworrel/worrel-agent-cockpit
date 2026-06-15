@@ -4,18 +4,9 @@ import { NavLink } from 'react-router-dom';
 import { FanMark } from '../components/Fan';
 import NewSessionDropdown from '../components/NewSessionDropdown';
 import type { Project, Session } from '../api';
+import { sessionName, ProviderBadge } from '../session';
 
 const MYSPACE = '__myspace__';
-
-// sessionLabel devolve um rótulo legível para a sessão: o título, se houver;
-// senão o provider + a hora de início (evita exibir o hash do id).
-function sessionLabel(s: Session): string {
-  if (s.title) return s.title;
-  const time = s.started_at
-    ? new Date(s.started_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-    : '';
-  return [s.adapter, time].filter(Boolean).join(' · ') || s.id.slice(0, 8);
-}
 
 interface Props {
   projects: Project[];
@@ -73,7 +64,8 @@ export default function ProjectSidebar({ projects, wrapperSessions, liveIds, onS
         <div className="sidebar-sessions">
           {sessions.map((s) => (
             <NavLink key={s.id} to={`/sessions/${s.id}`} className="sidebar-session">
-              {sessionLabel(s)}
+              <span className="sidebar-session-name">{sessionName(s)}</span>
+              <ProviderBadge adapter={s.adapter} />
             </NavLink>
           ))}
         </div>
