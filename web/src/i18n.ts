@@ -394,6 +394,17 @@ i18next
             newSuggestion: 'New suggestion arrived!',
             approvalRequest: 'Secret access requested!',
           },
+          newSession: {
+            title: '{{name}} · new session',
+            step1: 'Step 1/2 · What to load',
+            step2: 'Step 2/2 · Where to start',
+            memoryOnly: 'Memory only',
+            skills: 'Skills',
+            lastUsed: 'last',
+            next: 'Next',
+            back: 'Back',
+            noProviders: 'No installed provider',
+          },
           secrets: {
             title: 'Secrets',
             add: 'Add Secret',
@@ -812,6 +823,17 @@ i18next
           toast: {
             newSuggestion: 'Nova sugestão recebida!',
             approvalRequest: 'Solicitação de acesso a segredo!',
+          },
+          newSession: {
+            title: '{{name}} · nova sessão',
+            step1: 'Passo 1/2 · O que carregar',
+            step2: 'Passo 2/2 · Onde iniciar',
+            memoryOnly: 'Memory only',
+            skills: 'Skills',
+            lastUsed: 'última',
+            next: 'Avançar',
+            back: 'Voltar',
+            noProviders: 'Nenhum provider instalado',
           },
           secrets: {
             title: 'Segredos',

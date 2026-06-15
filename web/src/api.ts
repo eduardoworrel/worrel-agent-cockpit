@@ -27,6 +27,7 @@ export interface Skill {
   active_generation: number;
   evolution_policy: string;
   origin: string;
+  last_used_at: number;
 }
 
 export interface SkillGeneration {

@@ -19,6 +19,7 @@ type Skill struct {
 	EvolutionPolicy  string `json:"evolution_policy"`
 	Origin           string `json:"origin"`
 	Metadata         string `json:"metadata"`
+	LastUsedAt       int64  `json:"last_used_at"`
 }
 
 func (s *Store) CreateSkill(projectID, name, content string) (*Skill, error) {
@@ -71,15 +72,17 @@ func (s *Store) GetSkill(id string) (*Skill, error) {
 
 // ListSkills com projectID vazio lista todas.
 func (s *Store) ListSkills(projectID string) ([]*Skill, error) {
-	q := `SELECT id, project_id, slug, name, content, created_at, updated_at,
-		COALESCE(active_generation,1), COALESCE(evolution_policy,'manual'), COALESCE(origin,'learned'),
-		COALESCE(metadata,'{}') FROM skills`
+	q := `SELECT skills.id, skills.project_id, skills.slug, skills.name, skills.content, skills.created_at, skills.updated_at,
+		COALESCE(skills.active_generation,1), COALESCE(skills.evolution_policy,'manual'), COALESCE(skills.origin,'learned'),
+		COALESCE(skills.metadata,'{}'),
+		COALESCE((SELECT MAX(u.started_at) FROM skill_usage u WHERE u.skill_id = skills.id), 0) AS last_used_at
+		FROM skills`
 	args := []any{}
 	if projectID != "" {
-		q += ` WHERE project_id=?`
+		q += ` WHERE skills.project_id=?`
 		args = append(args, projectID)
 	}
-	q += ` ORDER BY updated_at DESC`
+	q += ` ORDER BY last_used_at DESC, skills.updated_at DESC`
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -90,7 +93,7 @@ func (s *Store) ListSkills(projectID string) ([]*Skill, error) {
 		sk := &Skill{}
 		if err := rows.Scan(&sk.ID, &sk.ProjectID, &sk.Slug, &sk.Name, &sk.Content,
 			&sk.CreatedAt, &sk.UpdatedAt, &sk.ActiveGeneration, &sk.EvolutionPolicy, &sk.Origin,
-			&sk.Metadata); err != nil {
+			&sk.Metadata, &sk.LastUsedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, sk)

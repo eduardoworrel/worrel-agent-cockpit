@@ -60,3 +60,33 @@ func TestSkillNotFound(t *testing.T) {
 		t.Fatalf("DeleteSkill err = %v, want sql.ErrNoRows", err)
 	}
 }
+
+func TestListSkillsOrdersByLastUsed(t *testing.T) {
+	s := newTestStore(t)
+	p, _ := s.CreateProject("App", "")
+	skA, err := s.CreateSkill(p.ID, "Skill A", "# a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	skB, err := s.CreateSkill(p.ID, "Skill B", "# b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = skA
+	if _, err := s.RecordSkillUsageStart(skB.ID, nil, 1); err != nil {
+		t.Fatal(err)
+	}
+	skills, err := s.ListSkills(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skills) != 2 {
+		t.Fatalf("expected 2 skills, got %d", len(skills))
+	}
+	if skills[0].ID != skB.ID {
+		t.Fatalf("expected first skill to be B (%s), got %s", skB.ID, skills[0].ID)
+	}
+	if skills[0].LastUsedAt == 0 {
+		t.Fatalf("expected B.LastUsedAt > 0, got 0")
+	}
+}

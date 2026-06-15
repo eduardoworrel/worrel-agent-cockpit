@@ -1198,3 +1198,22 @@ tr:last-child td { border-bottom: none; }
 .retro-range-inputs { display: flex; gap: 0.75rem; }
 .retro-range-inputs label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; color: var(--muted); }
 .retro-range-count { font-size: 0.85rem; }
+
+/* New-session multistep dropdown */
+.sidebar-project-head { position: relative; }
+.ns-dropdown { position: absolute; top: 1.6rem; right: 0; z-index: 50; width: 250px; background: var(--panel, #11141a); border: 1px solid var(--border, #232833); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.45); display: flex; flex-direction: column; }
+.ns-head { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border, #232833); font-size: 0.8rem; font-weight: 600; }
+.ns-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; }
+.ns-err { color: #ff6b6b; font-size: 0.75rem; padding: 0.3rem 0.6rem; }
+.ns-step { padding: 0.5rem 0.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.ns-step-head { display: flex; align-items: center; gap: 0.5rem; }
+.ns-step-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.ns-sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.4rem; }
+.ns-skills, .ns-providers { display: flex; flex-direction: column; gap: 0.2rem; max-height: 180px; overflow-y: auto; }
+.ns-opt { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; text-align: left; background: none; border: 1px solid transparent; border-radius: 5px; padding: 0.35rem 0.5rem; color: var(--ink, #e6e9ef); cursor: pointer; font-size: 0.85rem; }
+.ns-opt:hover { background: rgba(255,255,255,0.05); }
+.ns-opt.active { border-color: var(--accent, #5b8cff); background: rgba(91,140,255,0.12); }
+.ns-last { font-size: 0.65rem; color: var(--accent, #5b8cff); }
+.ns-ver { font-size: 0.7rem; color: var(--muted); }
+.ns-back { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.75rem; padding: 0; }
+.ns-foot { margin-top: 0.4rem; }
