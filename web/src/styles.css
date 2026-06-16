@@ -1290,3 +1290,69 @@ tr:last-child td { border-bottom: none; }
 
 .sidebar-settings-link { display: block; text-align: center; margin-top: 0.5rem; font-size: 0.82rem; color: var(--muted); padding: 0.3rem; border-radius: 6px; }
 .sidebar-settings-link:hover { background: var(--surface-warm); color: var(--ink); }
+
+/* Balões de confirmação/escolha (AskBalloons) — canto inferior direito */
+.ask-balloons {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 70vh;
+  overflow-y: auto;
+  width: 340px;
+}
+.ask-balloon {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e6ddca);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 12px 14px;
+  animation: ask-balloon-in 160ms ease-out;
+}
+@keyframes ask-balloon-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ask-balloon-session {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.72rem;
+  color: var(--muted, #8a7d63);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ask-balloon-title {
+  font-weight: 600;
+  color: var(--ink, #2a2419);
+  margin: 4px 0 6px;
+}
+.ask-balloon-detail {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  background: var(--surface-warm, #f6f0e2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 0 0 8px;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ask-balloon-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.ask-balloon-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #e6ddca);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
