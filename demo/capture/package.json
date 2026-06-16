@@ -1,0 +1,14 @@
+{
+  "name": "worrel-demo-capture",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "V2 personalized demo video pipeline: drives the REAL Worrel cockpit with Playwright and records an MP4/webm.",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

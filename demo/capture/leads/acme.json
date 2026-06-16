@@ -1,0 +1,29 @@
+{
+  "leadName": "Acme Corp",
+  "accent": "#ff7a18",
+  "projects": [
+    {
+      "name": "acme-payments",
+      "description": "Payment gateway and billing reconciliation service.",
+      "memory": "## Conventions\n- All money handled in integer cents.\n- Idempotency keys required on every charge endpoint.\n- Staging deploys gated behind e2e suite.",
+      "skills": [
+        { "name": "Deploy staging pipeline", "content": "# Deploy staging pipeline\nRun the build, push the image, then `make deploy-staging` and wait for the health check to go green." },
+        { "name": "Rotate API keys", "content": "# Rotate API keys\nGenerate a new key in the vault, roll it out to staging, verify, then revoke the old key after 24h." }
+      ]
+    },
+    {
+      "name": "blog-engine",
+      "description": "Static blog generator with a markdown content pipeline.",
+      "memory": "## Notes\n- Posts live under content/posts.\n- `npm run build` regenerates the static site.",
+      "skills": [
+        { "name": "Run e2e before merge", "content": "# Run e2e before merge\nAlways run `npm run e2e` and confirm zero failures before merging to main." }
+      ]
+    },
+    {
+      "name": "mobile-checkout",
+      "description": "Mobile checkout flow and cart persistence.",
+      "memory": "## Notes\n- Cart state persists in encrypted local storage.\n- Checkout calls acme-payments for the final charge.",
+      "skills": []
+    }
+  ]
+}

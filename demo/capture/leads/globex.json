@@ -1,0 +1,23 @@
+{
+  "leadName": "Globex",
+  "accent": "#2563eb",
+  "projects": [
+    {
+      "name": "globex-payments",
+      "description": "Unified payments orchestration layer.",
+      "memory": "## Conventions\n- Every transaction is double-entry.\n- Webhooks are retried with exponential backoff.",
+      "skills": [
+        { "name": "Deploy staging pipeline", "content": "# Deploy staging pipeline\nBuild, push, `make deploy-staging`, then verify the smoke tests pass." },
+        { "name": "Rotate API keys", "content": "# Rotate API keys\nMint, roll out, verify, revoke." }
+      ]
+    },
+    {
+      "name": "blog-engine",
+      "description": "Marketing blog with markdown pipeline.",
+      "memory": "## Notes\n- Drafts stay in content/drafts until reviewed.",
+      "skills": [
+        { "name": "Run e2e before merge", "content": "# Run e2e before merge\nRun the full e2e suite green before any merge to main." }
+      ]
+    }
+  ]
+}
