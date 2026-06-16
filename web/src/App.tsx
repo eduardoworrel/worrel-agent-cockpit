@@ -115,7 +115,7 @@ function AppInner() {
       const p = ev.payload as { id?: string };
       if (p.id) setAsks((prev) => prev.filter((a) => a.session_id !== p.id));
     }
-  }, [reload, loadAsks]);
+  }, [reload]);
   useEvents(handleEvent, loadAsks);
   useEffect(() => { loadAsks(); }, [loadAsks]);
 

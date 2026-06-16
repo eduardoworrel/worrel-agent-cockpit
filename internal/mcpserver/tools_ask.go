@@ -45,8 +45,11 @@ func (svc *Service) handleAskUser(ctx context.Context, sessionID, projectID stri
 
 	answer, ok := svc.ask.Wait(ctx, ch)
 	svc.ask.Remove(r.ID) // no-op se já resolvido
-	svc.bus.Publish(bus.Event{Type: "ask.resolved", Payload: map[string]any{"request_id": r.ID}})
 	if !ok {
+		// Cancelado (cliente desistiu): o responder não publicou nada, então
+		// somos nós a limpar o balão. No caminho de resposta normal, quem publica
+		// ask.resolved é handleAskRespond — evita evento duplicado.
+		svc.bus.Publish(bus.Event{Type: "ask.resolved", Payload: map[string]any{"request_id": r.ID}})
 		return errResult("pergunta cancelada (sem resposta)")
 	}
 	return textResult(answer)

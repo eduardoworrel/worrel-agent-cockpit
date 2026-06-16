@@ -58,9 +58,12 @@ func Run(stdin io.Reader, stdout io.Writer, baseURL, sessionID string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		return writeOut(stdout, decision("ask"))
 	}
-	pd := "deny"
-	if dec.Decision == "allow" {
-		pd = "allow"
+	// Só "allow"/"deny" explícitos são honrados; qualquer outra coisa (corpo
+	// inesperado, decisão vazia) cai no fallback seguro "ask" — deixa o Claude
+	// Code seguir o fluxo normal de permissão em vez de negar silenciosamente.
+	pd := "ask"
+	if dec.Decision == "allow" || dec.Decision == "deny" {
+		pd = dec.Decision
 	}
 	return writeOut(stdout, decision(pd))
 }
