@@ -301,6 +301,21 @@ func (s *Store) ListActiveWrapperSessions() ([]*Session, error) {
 	return out, rows.Err()
 }
 
+// EndOrphanedWrapperSessions encerra, no boot, toda sessão wrapper ainda marcada
+// como active. Um PTY de wrapper vive apenas no processo que o spawnou: após um
+// restart/reinstalação do servidor o mapa em memória nasce vazio, então qualquer
+// sessão active no banco é órfã (não há terminal vivo por trás). Sem isto elas
+// reaparecem na faixa de abas e ao clicar o usuário só encontra uma sessão morta
+// que precisa re-encerrar à mão. Devolve quantas foram reconciliadas.
+func (s *Store) EndOrphanedWrapperSessions() (int64, error) {
+	res, err := s.db.Exec(`UPDATE sessions SET status='ended', ended_at=COALESCE(ended_at, ?)
+		WHERE mode='wrapper' AND status='active'`, now())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // SetSessionWorkspaceDir persiste o workspace resolvido na sessão.
 func (s *Store) SetSessionWorkspaceDir(id, dir string) error {
 	_, err := s.db.Exec(`UPDATE sessions SET workspace_dir=? WHERE id=?`, dir, id)

@@ -23,6 +23,68 @@ export default function AskBalloons({ asks, onResolved }: Props) {
   );
 }
 
+// Ícone de prompt de terminal (›_) usado no segmento secundário do split button.
+function TerminalIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 8l4 4-4 4" />
+      <path d="M13 16h6" />
+    </svg>
+  );
+}
+
+type Variant = 'primary' | 'danger' | 'secondary';
+
+// SplitButton: um único botão com duas ações fundidas. O corpo principal executa
+// `onMain` (responde); o segmento secundário (ícone de terminal) executa `onAux`
+// (responde e abre o terminal da sessão). Visualmente é uma peça só.
+function SplitButton({
+  label,
+  variant,
+  disabled,
+  auxTitle,
+  onMain,
+  onAux,
+}: {
+  label: string;
+  variant: Variant;
+  disabled?: boolean;
+  auxTitle: string;
+  onMain: () => void;
+  onAux: () => void;
+}) {
+  return (
+    <span className={`split-btn is-${variant}`}>
+      <button
+        type="button"
+        className={`btn btn-${variant} btn-sm split-btn-main`}
+        disabled={disabled}
+        onClick={onMain}
+      >
+        {label}
+      </button>
+      <button
+        type="button"
+        className="split-btn-aux"
+        disabled={disabled}
+        title={auxTitle}
+        aria-label={auxTitle}
+        onClick={onAux}
+      >
+        <TerminalIcon />
+      </button>
+    </span>
+  );
+}
+
 function Balloon({ ask, onResolved }: { ask: AskRequest; onResolved: (id: string) => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -38,7 +100,14 @@ function Balloon({ ask, onResolved }: { ask: AskRequest; onResolved: (id: string
     onResolved(ask.request_id);
   }
 
+  // Responde e abre o terminal da sessão (ação do segmento secundário).
+  async function answerAndOpen(value: string) {
+    await answer(value);
+    navigate(`/sessions/${ask.session_id}`);
+  }
+
   const hasOptions = ask.options && ask.options.length > 0;
+  const auxTitle = t('ask.answerAndOpen');
 
   return (
     <div className="ask-balloon" role="alertdialog" aria-label={ask.title}>
@@ -54,19 +123,35 @@ function Balloon({ ask, onResolved }: { ask: AskRequest; onResolved: (id: string
 
       {ask.kind === 'permission' ? (
         <div className="ask-balloon-actions">
-          <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => answer('allow')}>
-            {t('ask.allow')}
-          </button>
-          <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => answer('deny')}>
-            {t('ask.deny')}
-          </button>
+          <SplitButton
+            label={t('ask.allow')}
+            variant="primary"
+            disabled={busy}
+            auxTitle={auxTitle}
+            onMain={() => answer('allow')}
+            onAux={() => answerAndOpen('allow')}
+          />
+          <SplitButton
+            label={t('ask.deny')}
+            variant="danger"
+            disabled={busy}
+            auxTitle={auxTitle}
+            onMain={() => answer('deny')}
+            onAux={() => answerAndOpen('deny')}
+          />
         </div>
       ) : hasOptions ? (
         <div className="ask-balloon-actions">
           {ask.options!.map((opt) => (
-            <button key={opt} className="btn btn-secondary btn-sm" disabled={busy} onClick={() => answer(opt)}>
-              {opt}
-            </button>
+            <SplitButton
+              key={opt}
+              label={opt}
+              variant="secondary"
+              disabled={busy}
+              auxTitle={auxTitle}
+              onMain={() => answer(opt)}
+              onAux={() => answerAndOpen(opt)}
+            />
           ))}
         </div>
       ) : (
@@ -81,9 +166,21 @@ function Balloon({ ask, onResolved }: { ask: AskRequest; onResolved: (id: string
             placeholder={t('ask.placeholder')}
             autoFocus
           />
-          <button className="btn btn-primary btn-sm" type="submit" disabled={busy || !text.trim()}>
-            {t('ask.send')}
-          </button>
+          <span className="split-btn is-primary">
+            <button className="btn btn-primary btn-sm split-btn-main" type="submit" disabled={busy || !text.trim()}>
+              {t('ask.send')}
+            </button>
+            <button
+              type="button"
+              className="split-btn-aux"
+              disabled={busy || !text.trim()}
+              title={auxTitle}
+              aria-label={auxTitle}
+              onClick={() => answerAndOpen(text.trim())}
+            >
+              <TerminalIcon />
+            </button>
+          </span>
         </form>
       )}
     </div>

@@ -34,6 +34,50 @@ func TestSessionsAndSettings(t *testing.T) {
 	}
 }
 
+func TestEndOrphanedWrapperSessions(t *testing.T) {
+	s := newTestStore(t)
+	p, _ := s.CreateProject("App", "")
+
+	// duas wrapper active (órfãs após restart) + uma observed active + uma já ended
+	w1, _ := s.CreateSession(&Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
+	w2, _ := s.CreateSession(&Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
+	obs, _ := s.CreateSession(&Session{ProjectID: p.ID, Adapter: "mcp", Mode: "observed"})
+	done, _ := s.CreateSession(&Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
+	if err := s.EndSession(done.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.EndOrphanedWrapperSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("reconciliadas = %d, quero 2", n)
+	}
+
+	// as wrapper viraram ended; a observed segue active
+	for _, id := range []string{w1.ID, w2.ID} {
+		got, _ := s.GetSession(id)
+		if got.Status != "ended" || got.EndedAt == nil {
+			t.Fatalf("wrapper %s status=%s ended_at=%v", id, got.Status, got.EndedAt)
+		}
+	}
+	if got, _ := s.GetSession(obs.ID); got.Status != "active" {
+		t.Fatalf("observed não deveria ser encerrada, status=%s", got.Status)
+	}
+
+	// faixa de ativas deve sair vazia
+	active, _ := s.ListActiveWrapperSessions()
+	if len(active) != 0 {
+		t.Fatalf("active wrapper = %d, quero 0", len(active))
+	}
+
+	// idempotente: segunda passada não reconcilia nada
+	if n2, _ := s.EndOrphanedWrapperSessions(); n2 != 0 {
+		t.Fatalf("segunda passada reconciliou %d, quero 0", n2)
+	}
+}
+
 func TestSessionByMCPTokenRoundTrip(t *testing.T) {
 	s := newTestStore(t)
 	p, _ := s.CreateProject("App", "")

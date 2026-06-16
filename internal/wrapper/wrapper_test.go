@@ -281,3 +281,20 @@ func TestTrackContextPublishesEvents(t *testing.T) {
 		// ok — não re-publicou
 	}
 }
+
+func TestDeriveTitleSkipsInjectedPrimer(t *testing.T) {
+	// O marcador deve casar com a 1ª linha do onboarding (protege contra drift).
+	if !strings.HasPrefix(worrelOnboarding, onboardingMarker) {
+		t.Fatalf("onboardingMarker não casa com worrelOnboarding")
+	}
+	events := []adapter.TranscriptEvent{
+		{Role: "user", Content: PrependOnboarding("memória do projeto aqui")},
+		{Role: "assistant", Content: "ok"},
+		{Role: "user", Content: "Ajustar o tema do terminal para acompanhar a página"},
+	}
+	got := deriveTitle(events)
+	want := "Ajustar o tema do terminal para acompanhar a página"
+	if got != want {
+		t.Fatalf("deriveTitle = %q, quer %q", got, want)
+	}
+}

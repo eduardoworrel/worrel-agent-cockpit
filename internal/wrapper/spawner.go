@@ -52,6 +52,11 @@ Regras: não invente projetos nem memórias; emita UMA sugestão por padrão rec
 ---
 `
 
+// onboardingMarker é o cabeçalho que abre worrelOnboarding. Usado por deriveTitle
+// para identificar (e pular) o evento do primer injetado ao derivar o título da
+// sessão. Mantém-se em sincronia com a primeira linha de worrelOnboarding.
+const onboardingMarker = "# Como esta sessão funciona (worrel)"
+
 // PrependOnboarding antepõe o onboarding do worrel a um primer. Vazio → só o
 // onboarding. Usado tanto no spawn normal quanto no handoff (que substitui o
 // primer), garantindo que toda sessão wrapper comece explicando o worrel.

@@ -330,6 +330,12 @@ func deriveTitle(events []adapter.TranscriptEvent) string {
 		if e.Role != "user" {
 			continue
 		}
+		// Pula o primer injetado pelo worrel (onboarding + memória + skill), que é
+		// idêntico em toda sessão — senão todo título vira "Como esta sessão
+		// funciona (worrel)". O título deve sair do PRIMEIRO recado real do usuário.
+		if strings.HasPrefix(strings.TrimSpace(e.Content), onboardingMarker) {
+			continue
+		}
 		for _, raw := range strings.Split(e.Content, "\n") {
 			line := strings.TrimSpace(raw)
 			line = strings.TrimLeft(line, "#-*> ")

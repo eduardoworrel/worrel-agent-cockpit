@@ -368,6 +368,7 @@ i18next
             send: 'Send',
             placeholder: 'Type your answer…',
             openSession: 'Open this session',
+            answerAndOpen: 'Answer and open the terminal',
           },
           sessionExtract: {
             prompt: 'Session ended. Extract learnings from it?',
@@ -826,6 +827,7 @@ i18next
             send: 'Enviar',
             placeholder: 'Digite sua resposta…',
             openSession: 'Abrir esta sessão',
+            answerAndOpen: 'Responder e abrir o terminal',
           },
           sessionExtract: {
             prompt: 'Sessão encerrada. Extrair os aprendizados dela?',

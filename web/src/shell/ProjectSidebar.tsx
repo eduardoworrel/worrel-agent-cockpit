@@ -72,8 +72,10 @@ export default function ProjectSidebar({ projects, wrapperSessions, liveIds, awa
               className={`sidebar-session${awaitingIds.has(s.id) ? ' needs-attention' : ''}`}
               title={awaitingIds.has(s.id) ? t('sidebar.awaiting') : undefined}
             >
-              <span className="sidebar-session-name">{sessionName(s)}</span>
-              <ProviderBadge adapter={s.adapter} />
+              <span className="sidebar-session-body">
+                <span className="sidebar-session-name">{sessionName(s)}</span>
+                <ProviderBadge adapter={s.adapter} />
+              </span>
             </NavLink>
           ))}
         </div>

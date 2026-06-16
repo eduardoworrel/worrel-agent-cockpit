@@ -99,6 +99,15 @@ func main() {
 	reg.Register(pd)
 	wm := wrapper.New(st, b)
 
+	// Reconciliação de boot: nenhum PTY de wrapper sobrevive a um restart do
+	// processo, então toda sessão wrapper ainda active no banco é órfã. Encerra-as
+	// para que não reapareçam na faixa de abas como sessões mortas a re-encerrar.
+	if n, err := st.EndOrphanedWrapperSessions(); err != nil {
+		log.Printf("reconciliação de sessões órfãs falhou: %v", err)
+	} else if n > 0 {
+		log.Printf("reconciliação de boot: %d sessão(ões) wrapper órfã(s) encerrada(s)", n)
+	}
+
 	// endereço de escuta: --port (se setado) sobrepõe a porta de --addr.
 	listenAddr := *addr
 	if *portFlag != 0 {

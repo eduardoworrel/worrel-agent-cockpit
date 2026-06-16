@@ -67,7 +67,32 @@ export default function Terminal() {
       fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
       fontSize: 13,
       cursorBlink: true,
-      theme: { background: '#191510' },
+      // Tema claro, alinhado à paleta do site (var(--surface-sunk), --ink-soft etc.).
+      // Cores ANSI escurecidas o suficiente para legibilidade sobre fundo claro.
+      theme: {
+        background: '#f7f2e8',
+        foreground: '#3a342b',
+        cursor: '#191510',
+        cursorAccent: '#f7f2e8',
+        selectionBackground: '#ffe3a0',
+        selectionForeground: '#191510',
+        black: '#191510',
+        red: '#c62f2f',
+        green: '#1f9d57',
+        yellow: '#b07d0a',
+        blue: '#1f7fc4',
+        magenta: '#a64ca6',
+        cyan: '#0e8a8a',
+        white: '#6e6557',
+        brightBlack: '#8a8173',
+        brightRed: '#e23b3b',
+        brightGreen: '#24b365',
+        brightYellow: '#c9920a',
+        brightBlue: '#2fa4ee',
+        brightMagenta: '#c25fc2',
+        brightCyan: '#11a3a3',
+        brightWhite: '#191510',
+      },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -192,7 +217,7 @@ export default function Terminal() {
           </button>
         </div>
       )}
-      <div ref={ref} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: '#191510', padding: 12 }} />
+      <div ref={ref} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: '#f7f2e8', padding: 12 }} />
     </div>
   );
 }
