@@ -252,9 +252,11 @@ func (ws *wrapperSpawner) Spawn(projectID, primer, continues string) (string, er
 	if err != nil {
 		return "", err
 	}
-	// Substituir o primer pelo handoff primer (memória + resumo + skills).
+	// Substituir o primer pelo handoff primer (memória + resumo + skills),
+	// mantendo o onboarding do worrel no início (BuildSpawnOpts já o aplicou ao
+	// primer default; aqui o substituímos, então reaplicamos).
 	if primer != "" {
-		opts.Primer = primer
+		opts.Primer = wrapper.PrependOnboarding(primer)
 	}
 	spec, err := ws.adapter.BuildInteractive(opts)
 	if err != nil {
