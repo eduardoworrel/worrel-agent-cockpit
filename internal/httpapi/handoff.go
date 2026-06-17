@@ -2,11 +2,18 @@ package httpapi
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 )
+
+// handoffSummaryTimeout limita a geração de resumo no caminho de retomada para
+// que a CLI headless não trave o endpoint indefinidamente. Se estourar, o
+// handoff segue sem resumo (a sessão ainda abre).
+const handoffSummaryTimeout = 45 * time.Second
 
 // SummaryGeneratorIface é satisfeita por *handoff.Generator.
 type SummaryGeneratorIface interface {
@@ -32,11 +39,20 @@ func (s *Server) routesHandoff() {
 			return
 		}
 
-		// 1) resumo estruturado (gera e persiste em sessions.summary)
-		summary, err := s.deps.Handoff.GenerateSummary(r.Context(), old.ID)
-		if err != nil {
-			writeErr(w, 500, "falha ao gerar resumo: "+err.Error())
-			return
+		// 1) resumo estruturado. Reusa o que já estiver persistido (ex.: gerado na
+		// recuperação de boot das órfãs) para retomar sem custo de LLM. Caso
+		// contrário gera com timeout: se a CLI headless travar ou falhar, o
+		// handoff NÃO aborta — segue sem resumo para que a sessão sempre abra.
+		summary := old.Summary
+		if strings.TrimSpace(summary) == "" {
+			ctx, cancel := context.WithTimeout(r.Context(), handoffSummaryTimeout)
+			gen, gerr := s.deps.Handoff.GenerateSummary(ctx, old.ID)
+			cancel()
+			if gerr != nil {
+				log.Printf("handoff %s: resumo falhou, seguindo sem ele: %v", old.ID, gerr)
+			} else {
+				summary = gen
+			}
 		}
 
 		// 2) primer = memória + resumo + skills em uso
@@ -67,7 +83,9 @@ func (s *Server) buildHandoffPrimer(projectID, summary string) string {
 	if mem, err := s.deps.Store.GetMemory(projectID); err == nil && mem.Content != "" {
 		b.WriteString("# Memória do projeto\n\n" + mem.Content + "\n\n")
 	}
-	b.WriteString("# Resumo de handoff da sessão anterior\n\n" + summary + "\n\n")
+	if strings.TrimSpace(summary) != "" {
+		b.WriteString("# Resumo de handoff da sessão anterior\n\n" + summary + "\n\n")
+	}
 	if skills, err := s.deps.Store.ListSkills(projectID); err == nil && len(skills) > 0 {
 		b.WriteString("# Skills disponíveis\n\n")
 		for _, sk := range skills {

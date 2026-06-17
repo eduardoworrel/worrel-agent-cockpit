@@ -100,6 +100,84 @@ func TestHandoffChainsSessions(t *testing.T) {
 	}
 }
 
+// errHandoffGen registra se foi chamado e sempre falha — simula CLI headless
+// indisponível/travada (após timeout vira erro de contexto).
+type errHandoffGen struct{ called bool }
+
+func (f *errHandoffGen) GenerateSummary(ctx context.Context, sessionID string) (string, error) {
+	f.called = true
+	return "", context.DeadlineExceeded
+}
+
+func newServerWithGen(t *testing.T, gen SummaryGeneratorIface) (*httptest.Server, *store.Store) {
+	t.Helper()
+	s, err := store.Open(t.TempDir() + "/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	m := mirror.New(t.TempDir())
+	b := bus.New()
+	srv := New(Deps{
+		Store: s, Mirror: m, Bus: b, Applier: apply.New(s, m, b),
+		Handoff: gen, Spawner: &fakeSpawner{s: s},
+	})
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	return ts, s
+}
+
+// Resumo já persistido (ex.: recuperação de boot) é reusado: retoma sem chamar o
+// gerador (sem custo de LLM, sem travar).
+func TestHandoffReusesPersistedSummary(t *testing.T) {
+	gen := &errHandoffGen{}
+	ts, s := newServerWithGen(t, gen)
+	p, _ := s.CreateProject("App", "")
+	old, _ := s.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
+	_ = s.SetSessionSummary(old.ID, "## Estado atual\njá tinha")
+
+	var resp struct {
+		NewID   string `json:"new_id"`
+		Summary string `json:"summary"`
+	}
+	code := postJSON(t, ts, "/api/sessions/"+old.ID+"/handoff", nil, &resp)
+	if code != 200 {
+		t.Fatalf("code=%d", code)
+	}
+	if gen.called {
+		t.Fatal("gerador foi chamado apesar de já haver resumo")
+	}
+	if !strings.Contains(resp.Summary, "já tinha") || resp.NewID == "" {
+		t.Fatalf("resp inesperada: %+v", resp)
+	}
+}
+
+// Falha/timeout na geração do resumo NÃO aborta o handoff: a nova sessão é criada
+// (o terminal abre) mesmo sem resumo. Antes retornava 500 e nada abria.
+func TestHandoffSucceedsWhenSummaryFails(t *testing.T) {
+	gen := &errHandoffGen{}
+	ts, s := newServerWithGen(t, gen)
+	p, _ := s.CreateProject("App", "")
+	old, _ := s.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
+
+	var resp struct {
+		NewID string `json:"new_id"`
+	}
+	code := postJSON(t, ts, "/api/sessions/"+old.ID+"/handoff", nil, &resp)
+	if code != 200 {
+		t.Fatalf("esperava 200 mesmo com resumo falhando, got %d", code)
+	}
+	if !gen.called {
+		t.Fatal("gerador deveria ter sido chamado")
+	}
+	if resp.NewID == "" {
+		t.Fatal("nova sessão não foi criada")
+	}
+	if got, _ := s.GetSession(old.ID); got.Status != "archived" {
+		t.Fatalf("antiga deveria estar arquivada, status=%s", got.Status)
+	}
+}
+
 func TestHandoffNotAvailableWithoutDeps(t *testing.T) {
 	ts, s := newTestServer(t)
 	p, _ := s.CreateProject("App", "")
