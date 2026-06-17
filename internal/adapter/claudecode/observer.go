@@ -225,7 +225,8 @@ func (a *Adapter) ReadTranscript(ref adapter.SessionRef) ([]adapter.TranscriptEv
 		if strings.TrimSpace(text) == "" {
 			continue
 		}
-		te := adapter.TranscriptEvent{Role: ev.Message.Role, Kind: kind, Content: text}
+		te := adapter.TranscriptEvent{Role: ev.Message.Role, Kind: kind, Content: text,
+			Payload: blockPayload(ev.Message.Content)}
 		if te.Role == "" {
 			te.Role = ev.Type
 		}
