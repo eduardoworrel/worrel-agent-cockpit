@@ -74,10 +74,20 @@ func migrateAddColumns(db *sql.DB) error {
 			`ALTER TABLE sessions ADD COLUMN workspace_dir TEXT NOT NULL DEFAULT ''`},
 		{"sessions", "source_dir",
 			`ALTER TABLE sessions ADD COLUMN source_dir TEXT NOT NULL DEFAULT ''`},
+		// motivo do encerramento de uma sessão wrapper: exit code + cauda do
+		// stderr do CLI capturados em onExit. Vazio = encerrada sem detalhe
+		// (boot reconciliation, kill manual, ou sessões antigas/observed).
+		{"sessions", "end_reason",
+			`ALTER TABLE sessions ADD COLUMN end_reason TEXT NOT NULL DEFAULT ''`},
 		// metadata JSON da skill: {kind:"pipeline", steps:[{skill_id,note,inputs,credentials}]}
 		// para skills compostas (pipelines). '{}' para skills normais.
 		{"skills", "metadata",
 			`ALTER TABLE skills ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`},
+		// payload JSON por evento de transcript: dados estruturados de ferramenta
+		// (tool_use {name,input}; tool_result {output,is_error}). '' para eventos
+		// de texto e para adapters sem captura rica.
+		{"transcript_events", "payload",
+			`ALTER TABLE transcript_events ADD COLUMN payload TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, w := range wanted {
 		var n int
