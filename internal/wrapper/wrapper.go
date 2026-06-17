@@ -139,6 +139,10 @@ func (m *Manager) onExit(s *session) {
 		return
 	}
 	s.closed = true
+	// cauda do output do PTY (stdout+stderr do CLI) ANTES de fechar: é a única
+	// pista do porquê do encerramento — sem isto, o fim da sessão fica "sem
+	// explicação" (o exit code sozinho raramente diz o motivo).
+	tail := lastBytes(s.raw, exitTailBytes)
 	// fecha os canais de todos os assinantes → goroutines de escrita saem.
 	for id, ch := range s.subs {
 		delete(s.subs, id)
@@ -147,7 +151,7 @@ func (m *Manager) onExit(s *session) {
 	s.mu.Unlock()
 
 	_ = s.ptmx.Close()
-	_ = s.cmd.Wait()
+	waitErr := s.cmd.Wait()
 	if s.cleanup != nil {
 		_ = s.cleanup()
 	}
@@ -159,8 +163,71 @@ func (m *Manager) onExit(s *session) {
 	delete(m.titled, s.id)
 	m.mu.Unlock()
 
-	_ = m.store.EndSession(s.id)
-	m.bus.Publish(bus.Event{Type: "session.ended", Payload: map[string]any{"id": s.id}})
+	reason := exitReason(waitErr, tail)
+	_ = m.store.EndSessionWithReason(s.id, reason)
+	m.bus.Publish(bus.Event{Type: "session.ended",
+		Payload: map[string]any{"id": s.id, "reason": reason}})
+}
+
+// exitTailBytes é quanto da cauda do PTY guardamos como pista do encerramento.
+const exitTailBytes = 2 << 10 // 2KB
+
+// lastBytes devolve uma cópia dos últimos n bytes de b (ou b inteiro se menor).
+func lastBytes(b []byte, n int) []byte {
+	if len(b) <= n {
+		return append([]byte(nil), b...)
+	}
+	return append([]byte(nil), b[len(b)-n:]...)
+}
+
+// exitReason monta um motivo legível do encerramento a partir do erro de Wait
+// (exit code / sinal) e da cauda do PTY. Saída normal (exit 0) sem cauda útil
+// devolve "" — só registramos detalhe quando há algo a explicar.
+func exitReason(waitErr error, tail []byte) string {
+	t := strings.TrimSpace(stripANSI(string(tail)))
+	var head string
+	switch {
+	case waitErr == nil:
+		if t == "" {
+			return ""
+		}
+		head = "CLI encerrou (exit 0)"
+	default:
+		if ee, ok := waitErr.(*exec.ExitError); ok {
+			if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+				head = fmt.Sprintf("CLI morto por sinal %s", ws.Signal())
+			} else {
+				head = fmt.Sprintf("CLI saiu com código %d", ee.ExitCode())
+			}
+		} else {
+			head = "CLI terminou: " + waitErr.Error()
+		}
+	}
+	if t == "" {
+		return head
+	}
+	return head + " — " + t
+}
+
+// stripANSI remove sequências de escape ANSI (cores/cursor) da cauda do PTY,
+// para que o motivo gravado seja texto legível e não lixo de terminal.
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b { // ESC: pula até a letra final de uma sequência CSI/OSC
+			i++
+			for i < len(s) && !((s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z')) {
+				i++
+			}
+			if i < len(s) {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
 }
 
 func (m *Manager) get(sessionID string) (*session, error) {

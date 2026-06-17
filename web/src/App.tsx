@@ -39,6 +39,7 @@ interface ExtractState {
   id: string;
   status: 'idle' | 'busy' | 'done' | 'error';
   result?: DistillResult;
+  reason?: string; // motivo do encerramento (exit code + cauda do stderr do CLI)
 }
 
 function AppInner() {
@@ -94,8 +95,8 @@ function AppInner() {
     // transcript seja podado.
     if (ev.type === 'session.ended') {
       reload();
-      const p = ev.payload as { id?: string };
-      if (p.id) setExtract({ id: p.id, status: 'idle' });
+      const p = ev.payload as { id?: string; reason?: string };
+      if (p.id) setExtract({ id: p.id, status: 'idle', reason: p.reason });
     }
     // Título da sessão derivado do 1º recado: recarrega para refletir na sidebar.
     if (ev.type === 'session.titled') reload();
@@ -147,6 +148,9 @@ function AppInner() {
       ) : (
         <>
           <div className="extract-toast-msg">{t('sessionExtract.prompt')}</div>
+          {extract.reason && (
+            <div className="extract-toast-reason">{extract.reason}</div>
+          )}
           {extract.status === 'error' && (
             <div className="extract-toast-err">{t('sessionExtract.error')}</div>
           )}
