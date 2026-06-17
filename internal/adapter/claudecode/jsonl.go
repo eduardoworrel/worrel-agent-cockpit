@@ -113,11 +113,12 @@ func blockPayload(raw json.RawMessage) string {
 		return ""
 	}
 	type toolPayload struct {
-		Type    string          `json:"type"`
-		Name    string          `json:"name,omitempty"`
-		Input   json.RawMessage `json:"input,omitempty"`
-		Output  string          `json:"output,omitempty"`
-		IsError bool            `json:"is_error,omitempty"`
+		Type      string          `json:"type"`
+		Name      string          `json:"name,omitempty"`
+		Input     json.RawMessage `json:"input,omitempty"`
+		Output    string          `json:"output,omitempty"`
+		ToolUseID string          `json:"tool_use_id,omitempty"`
+		IsError   bool            `json:"is_error,omitempty"`
 	}
 	var tools []toolPayload
 	for _, b := range blocks {
@@ -125,7 +126,7 @@ func blockPayload(raw json.RawMessage) string {
 		case "tool_use":
 			tools = append(tools, toolPayload{Type: "tool_use", Name: b.Name, Input: b.Input})
 		case "tool_result":
-			tools = append(tools, toolPayload{Type: "tool_result", Output: toolResultText(b.Content), IsError: b.IsError})
+			tools = append(tools, toolPayload{Type: "tool_result", Output: toolResultText(b.Content), ToolUseID: b.ToolUseID, IsError: b.IsError})
 		}
 	}
 	if len(tools) == 0 {

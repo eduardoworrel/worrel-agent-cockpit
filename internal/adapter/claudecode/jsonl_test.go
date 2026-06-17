@@ -32,6 +32,18 @@ func TestExtractToolResultRich(t *testing.T) {
 	}
 }
 
+func TestExtractToolResultBlockListContent(t *testing.T) {
+	raw := json.RawMessage(`[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"hello"}]}]`)
+	text, kind := extractText(raw)
+	if kind != "tool_result" || !strings.Contains(text, "hello") {
+		t.Fatalf("text=%q kind=%q", text, kind)
+	}
+	pl := blockPayload(raw)
+	if !strings.Contains(pl, "hello") || !strings.Contains(pl, `"tool_use_id":"t1"`) {
+		t.Fatalf("payload=%q", pl)
+	}
+}
+
 func TestBlockPayloadEmptyForNonTool(t *testing.T) {
 	if pl := blockPayload(json.RawMessage(`[{"type":"text","text":"oi"}]`)); pl != "" {
 		t.Fatalf("texto deveria dar payload vazio, got %q", pl)
