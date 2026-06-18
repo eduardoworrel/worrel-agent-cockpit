@@ -34,11 +34,9 @@ func TestBuildSpawnOpts(t *testing.T) {
 	if !strings.Contains(opts.Primer, "Use tabs") {
 		t.Fatalf("primer sem memória: %q", opts.Primer)
 	}
-	// instruções de auto-relato citam as tools MCP
-	for _, tool := range []string{"report_task_completed", "report_correction", "propose_skill"} {
-		if !strings.Contains(opts.SystemAppend, tool) {
-			t.Fatalf("system append sem %s", tool)
-		}
+	// SystemAppend deve estar vazio (report tools removidos em sp1)
+	if opts.SystemAppend != "" {
+		t.Fatalf("system append deve ser vazio, got %q", opts.SystemAppend)
 	}
 	if !strings.HasPrefix(opts.MCPURL, "http://127.0.0.1:7717/mcp?s=") {
 		t.Fatalf("mcp url = %q", opts.MCPURL)

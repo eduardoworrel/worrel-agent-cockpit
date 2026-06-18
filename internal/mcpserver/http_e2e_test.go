@@ -108,7 +108,7 @@ func TestHTTPE2E_WithToken(t *testing.T) {
 	endpoint := ts.URL + "/mcp?s=tok-e2e"
 	cs := connectHTTP(t, endpoint)
 
-	// ListTools must include list_projects and report_task_completed.
+	// ListTools must include list_projects and get_session_summary (report tools removed).
 	toolsRes, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatal("ListTools:", err)
@@ -117,7 +117,7 @@ func TestHTTPE2E_WithToken(t *testing.T) {
 	for _, tl := range toolsRes.Tools {
 		names[tl.Name] = true
 	}
-	for _, want := range []string{"list_projects", "report_task_completed"} {
+	for _, want := range []string{"list_projects", "get_session_summary"} {
 		if !names[want] {
 			t.Errorf("tool %q missing from ListTools; got: %v", want, toolsRes.Tools)
 		}
@@ -131,42 +131,15 @@ func TestHTTPE2E_WithToken(t *testing.T) {
 	if !strings.Contains(out, "E2E Project") {
 		t.Fatalf("list_projects: expected %q in output, got: %s", "E2E Project", out)
 	}
-
-	// CallTool report_task_completed must create a pending suggestion with the
-	// correct SessionID.
-	out, isErr = callTextHTTP(t, cs, "report_task_completed", map[string]any{
-		"summary":  "tarefa e2e concluída",
-		"evidence": "arquivo e2e_test.go criado",
-	})
-	if isErr {
-		t.Fatalf("report_task_completed returned error: %s", out)
-	}
-	if !strings.Contains(strings.ToLower(out), "sugestão") {
-		t.Fatalf("report_task_completed: expected confirmation, got: %s", out)
-	}
-
-	// Verify suggestion was created in the store with the session ID.
-	pend, err := st.ListSuggestions(proj.ID, "pending")
-	if err != nil {
-		t.Fatal("ListSuggestions:", err)
-	}
-	if len(pend) != 1 {
-		t.Fatalf("expected 1 pending suggestion, got %d", len(pend))
-	}
-	sg := pend[0]
-	if sg.Type != "add_memory" {
-		t.Errorf("expected suggestion type add_memory, got %q", sg.Type)
-	}
-	if sg.SessionID == nil || *sg.SessionID != sess.ID {
-		t.Errorf("expected SessionID=%q, got %v", sess.ID, sg.SessionID)
-	}
+	_ = sess
 }
 
-// TestHTTPE2E_WithoutToken verifies external (tokenless) MCP client behavior.
+// TestHTTPE2E_WithoutToken verifies external (tokenless) MCP client behavior:
+// read-only tools (list_projects) work without a token.
 func TestHTTPE2E_WithoutToken(t *testing.T) {
 	ts, st, _ := buildServer(t)
 
-	// Seed a project for explicit project_id usage.
+	// Seed a project.
 	proj, err := st.CreateProject("External Project", "projeto externo")
 	if err != nil {
 		t.Fatal("CreateProject:", err)
@@ -175,42 +148,13 @@ func TestHTTPE2E_WithoutToken(t *testing.T) {
 	endpoint := ts.URL + "/mcp"
 	cs := connectHTTP(t, endpoint)
 
-	// report_correction without project_id must return an IsError result
-	// mentioning project_id.
-	out, isErr := callTextHTTP(t, cs, "report_correction", map[string]any{
-		"what_failed": "npm test",
-		"what_worked": "npm test -- --runInBand",
-	})
-	if !isErr {
-		t.Fatalf("expected IsError=true when project_id missing, got output: %s", out)
-	}
-	if !strings.Contains(out, "project_id") {
-		t.Fatalf("expected error mentioning project_id, got: %s", out)
-	}
-
-	// report_correction WITH explicit project_id must succeed and create a
-	// suggestion with nil SessionID (external agent, no token).
-	out, isErr = callTextHTTP(t, cs, "report_correction", map[string]any{
-		"project_id":  proj.ID,
-		"what_failed": "npm test",
-		"what_worked": "npm test -- --runInBand",
-	})
+	// list_projects must return seeded project even without a token.
+	out, isErr := callTextHTTP(t, cs, "list_projects", map[string]any{})
 	if isErr {
-		t.Fatalf("report_correction with project_id returned error: %s", out)
+		t.Fatalf("list_projects returned error: %s", out)
 	}
-
-	pend, err := st.ListSuggestions(proj.ID, "pending")
-	if err != nil {
-		t.Fatal("ListSuggestions:", err)
+	if !strings.Contains(out, "External Project") {
+		t.Fatalf("list_projects: expected project name in output, got: %s", out)
 	}
-	if len(pend) != 1 {
-		t.Fatalf("expected 1 pending suggestion, got %d", len(pend))
-	}
-	sg := pend[0]
-	if sg.SessionID != nil {
-		t.Errorf("expected nil SessionID for external agent, got %v", *sg.SessionID)
-	}
-	if sg.Type != "add_correction" {
-		t.Errorf("expected suggestion type add_correction, got %q", sg.Type)
-	}
+	_ = proj
 }
