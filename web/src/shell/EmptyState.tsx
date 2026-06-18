@@ -3,11 +3,10 @@ import { FanMark } from '../components/Fan';
 
 interface Props {
   onNewSession: () => void;
-  onAnalyzeHistory: () => void;
 }
 
 // EmptyState é a tela de primeiro uso: sem sidebar, sem drawer. Uma decisão.
-export default function EmptyState({ onNewSession, onAnalyzeHistory }: Props) {
+export default function EmptyState({ onNewSession }: Props) {
   const { t } = useTranslation();
   return (
     <div className="empty-state">
@@ -19,9 +18,6 @@ export default function EmptyState({ onNewSession, onAnalyzeHistory }: Props) {
       <div className="empty-state-actions">
         <button className="btn btn-primary" onClick={onNewSession}>
           {t('onboarding.startSession')}
-        </button>
-        <button className="btn btn-secondary" onClick={onAnalyzeHistory}>
-          {t('onboarding.analyzeHistory')}
         </button>
       </div>
       <p className="empty-state-hint">{t('onboarding.hint')}</p>

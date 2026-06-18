@@ -25,6 +25,7 @@ type Session struct {
 	TranscriptPruned bool   `json:"transcript_pruned"`
 	WorkspaceDir     string `json:"workspace_dir"`
 	SourceDir        string `json:"source_dir"`
+	EndReason        string `json:"end_reason"`
 }
 
 type TranscriptEvent struct {
@@ -33,6 +34,7 @@ type TranscriptEvent struct {
 	Role      string `json:"role"`
 	Kind      string `json:"kind"`
 	Content   string `json:"content"`
+	Payload   string `json:"payload"`
 	TokensIn  int64  `json:"tokens_in"`
 	TokensOut int64  `json:"tokens_out"`
 	CreatedAt int64  `json:"created_at"`
@@ -71,14 +73,14 @@ func (s *Store) SessionByMCPToken(token string) (*Session, error) {
 
 const sessionCols = `SELECT id, COALESCE(project_id,''), adapter, external_ref, mode, title, status,
 	continues, mcp_token, started_at, ended_at, analyzed_at, context_used, context_limit, summary,
-	transcript_pruned, COALESCE(workspace_dir,''), COALESCE(source_dir,'')
+	transcript_pruned, COALESCE(workspace_dir,''), COALESCE(source_dir,''), COALESCE(end_reason,'')
 	FROM sessions`
 
 func scanSession(r rowScanner) (*Session, error) {
 	x := &Session{}
 	err := r.Scan(&x.ID, &x.ProjectID, &x.Adapter, &x.ExternalRef, &x.Mode, &x.Title, &x.Status,
 		&x.Continues, &x.MCPToken, &x.StartedAt, &x.EndedAt, &x.AnalyzedAt,
-		&x.ContextUsed, &x.ContextLimit, &x.Summary, &x.TranscriptPruned, &x.WorkspaceDir, &x.SourceDir)
+		&x.ContextUsed, &x.ContextLimit, &x.Summary, &x.TranscriptPruned, &x.WorkspaceDir, &x.SourceDir, &x.EndReason)
 	return x, err
 }
 
@@ -109,6 +111,29 @@ func (s *Store) ListSessions(projectID string) ([]*Session, error) {
 
 func (s *Store) EndSession(id string) error {
 	result, err := s.db.Exec(`UPDATE sessions SET status='ended', ended_at=? WHERE id=?`, now(), id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// EndSessionWithReason encerra a sessão gravando também o motivo (exit code +
+// cauda do stderr do CLI) — usado por onExit quando o processo wrapper morre,
+// para que o encerramento deixe de ser "sem explicação". Idempotente quanto ao
+// status; o motivo só é gravado se ainda vazio (a primeira causa registrada
+// vence — um Kill manual posterior não sobrescreve o crash original).
+func (s *Store) EndSessionWithReason(id, reason string) error {
+	result, err := s.db.Exec(`UPDATE sessions
+		SET status='ended', ended_at=COALESCE(ended_at, ?),
+		    end_reason=CASE WHEN COALESCE(end_reason,'')='' THEN ? ELSE end_reason END
+		WHERE id=?`, now(), reason, id)
 	if err != nil {
 		return err
 	}
@@ -153,16 +178,23 @@ func (s *Store) UpdateSessionContext(id string, used, limit int64) error {
 	return nil
 }
 
-func (s *Store) AppendTranscriptEvent(sessionID, role, kind, content string, tokIn, tokOut int64) error {
+// AppendTranscriptEventRich apenda um evento com payload estruturado (JSON de
+// ferramenta). seq é auto-incrementado por sessão.
+func (s *Store) AppendTranscriptEventRich(sessionID, role, kind, content, payload string, tokIn, tokOut int64) error {
 	_, err := s.db.Exec(`INSERT INTO transcript_events
-		(session_id, seq, role, kind, content, tokens_in, tokens_out, created_at)
-		VALUES (?, COALESCE((SELECT MAX(seq) FROM transcript_events WHERE session_id=?),0)+1, ?,?,?,?,?,?)`,
-		sessionID, sessionID, role, kind, content, tokIn, tokOut, now())
+		(session_id, seq, role, kind, content, payload, tokens_in, tokens_out, created_at)
+		VALUES (?, COALESCE((SELECT MAX(seq) FROM transcript_events WHERE session_id=?),0)+1, ?,?,?,?,?,?,?)`,
+		sessionID, sessionID, role, kind, content, payload, tokIn, tokOut, now())
 	return err
 }
 
+// AppendTranscriptEvent mantém a assinatura legada (sem payload); delega para Rich.
+func (s *Store) AppendTranscriptEvent(sessionID, role, kind, content string, tokIn, tokOut int64) error {
+	return s.AppendTranscriptEventRich(sessionID, role, kind, content, "", tokIn, tokOut)
+}
+
 func (s *Store) ListTranscriptEvents(sessionID string) ([]*TranscriptEvent, error) {
-	rows, err := s.db.Query(`SELECT session_id, seq, role, kind, content, tokens_in, tokens_out, created_at
+	rows, err := s.db.Query(`SELECT session_id, seq, role, kind, content, payload, tokens_in, tokens_out, created_at
 		FROM transcript_events WHERE session_id=? ORDER BY seq`, sessionID)
 	if err != nil {
 		return nil, err
@@ -171,7 +203,7 @@ func (s *Store) ListTranscriptEvents(sessionID string) ([]*TranscriptEvent, erro
 	out := []*TranscriptEvent{}
 	for rows.Next() {
 		e := &TranscriptEvent{}
-		if err := rows.Scan(&e.SessionID, &e.Seq, &e.Role, &e.Kind, &e.Content,
+		if err := rows.Scan(&e.SessionID, &e.Seq, &e.Role, &e.Kind, &e.Content, &e.Payload,
 			&e.TokensIn, &e.TokensOut, &e.CreatedAt); err != nil {
 			return nil, err
 		}

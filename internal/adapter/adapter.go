@@ -88,6 +88,7 @@ type TranscriptEvent struct {
 	Role      string
 	Kind      string
 	Content   string
+	Payload   string // JSON estruturado de ferramenta (vazio p/ texto)
 	TokensIn  int64
 	TokensOut int64
 	CreatedAt int64 // unix ms

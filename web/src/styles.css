@@ -1215,6 +1215,16 @@ tr:last-child td { border-bottom: none; }
 }
 .extract-toast-msg { font-size: 0.9rem; line-height: 1.35; }
 .extract-toast-err { font-size: 0.8rem; color: #ff6a6a; }
+.extract-toast-reason {
+  font-size: 0.75rem;
+  color: var(--muted, #9aa0a6);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 6rem;
+  overflow-y: auto;
+  opacity: 0.85;
+}
 .extract-toast-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
 /* Project sidebar */

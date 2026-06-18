@@ -102,8 +102,6 @@ func TestToolsListExposesAll(t *testing.T) {
 	}
 	for _, want := range []string{"list_projects", "get_project", "get_memory", "list_skills",
 		"get_skill", "load_skill",
-		"report_task_completed", "report_correction", "propose_skill",
-		"propose_skill_update", "append_memory_suggestion",
 		"get_session_summary"} {
 		if !names[want] {
 			b, _ := json.Marshal(names)

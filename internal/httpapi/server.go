@@ -8,10 +8,8 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/ask"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/chat"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/retro"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/vault"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/workspace"
@@ -29,12 +27,10 @@ type Deps struct {
 	Adapters  *adapter.Registry
 	Port      int             // porta de escuta, p/ montar a URL MCP por sessão
 	Vault     *vault.Vault
-	Distiller *distill.Engine // motor de varredura (fase 4)
 	Handoff   SummaryGeneratorIface // optional; nil = handoff indisponível
 	Spawner   Spawner               // optional; nil = handoff indisponível
-	Retro     *retro.Service        // fase 8: análise retroativa; nil = indisponível
-	Chat      *chat.Service         // chat de destilação; nil = chat indisponível
 	Ask       *ask.Broker           // pedidos de confirmação/escolha (balões); nil = indisponível
+	Engines *engine.Registry // framework de motores (SP1); nil = indisponível
 }
 
 type Server struct {
@@ -61,17 +57,14 @@ func (s *Server) routes() {
 	s.routesProjects()
 	s.routesFS()
 	s.routesSuggestions()
+	s.routesEngines()
 	s.routesLineage()
 	s.routesSkillPkg()
 	s.routesSessions()
 	s.routesModels()
 	s.routesSecrets()
-	s.routesSweep()
 	s.routesHandoff()
-	s.routesRetro()
 	s.routesPipelines()
-	s.routesChat()
-	s.routesPrompts()
 	s.routesAsks()
 	s.routesReset()
 	s.routesWS()

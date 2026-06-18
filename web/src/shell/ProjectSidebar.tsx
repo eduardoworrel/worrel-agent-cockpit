@@ -16,14 +16,13 @@ interface Props {
   // ou confirmação) → marca a sessão com um alerta visual na sidebar.
   awaitingIds: Set<string>;
   onStarted: (s: Session) => void;
-  onAnalyzeHistory: () => void;
 }
 
 // ProjectSidebar lista o grupo virtual MySpace (sessões órfãs, sem project_id)
 // fixado no topo, seguido dos projetos reais. Cada grupo tem o ＋ que abre o
 // NewSessionDropdown multistep. MySpace inicia sessão livre (projectId null).
 // Só sessões VIVAS (com processo ativo) aparecem; encerradas saem da sidebar.
-export default function ProjectSidebar({ projects, wrapperSessions, liveIds, awaitingIds, onStarted, onAnalyzeHistory }: Props) {
+export default function ProjectSidebar({ projects, wrapperSessions, liveIds, awaitingIds, onStarted }: Props) {
   const { t } = useTranslation();
   const [openFor, setOpenFor] = useState<string | null>(null); // null = nenhum dropdown aberto
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
@@ -97,9 +96,6 @@ export default function ProjectSidebar({ projects, wrapperSessions, liveIds, awa
       </nav>
 
       <div className="sidebar-foot">
-        <button className="btn btn-secondary" style={{ width: '100%' }} onClick={onAnalyzeHistory}>
-          {t('onboarding.analyzeHistory')}
-        </button>
         <NavLink to="/settings" className="sidebar-settings-link">⚙ {t('nav.settings')}</NavLink>
       </div>
     </aside>

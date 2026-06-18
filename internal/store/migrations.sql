@@ -131,62 +131,15 @@ CREATE TABLE IF NOT EXISTS skill_usage (
 CREATE INDEX IF NOT EXISTS idx_skill_usage_skill ON skill_usage(skill_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_skill_gen_skill ON skill_generations(skill_id, generation);
 
--- Fase 8 — análise retroativa (máquina de estados de execução).
-CREATE TABLE IF NOT EXISTS retro_runs (
-  id TEXT PRIMARY KEY,
-  status TEXT NOT NULL DEFAULT 'inventoried', -- inventoried|scoped|clustering|clustered|running|paused|done|canceled
-  depth TEXT NOT NULL DEFAULT 'completa',      -- completa | leve
-  scope TEXT NOT NULL DEFAULT '{}',            -- JSON: clis, dirs, window_days, since_ms
-  budget_per_hour INTEGER NOT NULL DEFAULT 0,  -- 0 = sem limite/hora
-  budget_total INTEGER NOT NULL DEFAULT 0,     -- 0 = sem teto total
-  llm_calls INTEGER NOT NULL DEFAULT 0,        -- invocações headless já consumidas nesta run
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS retro_run_sessions (
-  run_id TEXT NOT NULL REFERENCES retro_runs(id) ON DELETE CASCADE,
-  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  project_id TEXT,                              -- preenchido após aprovação do mapa
-  state TEXT NOT NULL DEFAULT 'pending',        -- pending | done | skipped
-  processed_at INTEGER,
-  PRIMARY KEY (run_id, session_id)
-);
-CREATE TABLE IF NOT EXISTS retro_clusters (
-  id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL REFERENCES retro_runs(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  existing_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, -- associação (critério 6)
-  dirs TEXT NOT NULL DEFAULT '[]',              -- JSON []
-  session_ids TEXT NOT NULL DEFAULT '[]',       -- JSON []
-  decision TEXT NOT NULL DEFAULT 'pending',     -- pending|approved|discarded
-  approved_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-  created_at INTEGER NOT NULL
-);
 CREATE TABLE IF NOT EXISTS secret_suppressions (
   hash TEXT PRIMARY KEY,                         -- sha256 do valor cru; valor NUNCA armazenado
   created_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_retro_run_sessions_state ON retro_run_sessions(run_id, state);
-
--- Chat de destilação: conversas guiadas por IA sobre o histórico, que propõem
--- skills/memórias/projetos/pipelines como sugestões (origin='chat').
-CREATE TABLE IF NOT EXISTS chat_threads (
-  id TEXT PRIMARY KEY,
-  scope TEXT NOT NULL DEFAULT '{}',     -- JSON: {project_id?, cluster?, window_days?, clis[]?}
-  provider TEXT NOT NULL DEFAULT '',
-  model TEXT NOT NULL DEFAULT '',
-  title TEXT NOT NULL DEFAULT '',
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS engine_config (
+  engine_id  TEXT NOT NULL,
+  scope_key  TEXT NOT NULL,            -- '' = global; senão project_id
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (engine_id, scope_key, key)
 );
-CREATE TABLE IF NOT EXISTS chat_messages (
-  thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
-  seq INTEGER NOT NULL,
-  role TEXT NOT NULL,                   -- user | assistant
-  content TEXT NOT NULL,
-  sources TEXT NOT NULL DEFAULT '[]',   -- JSON: ids/refs das sessões usadas como contexto
-  created_at INTEGER NOT NULL,
-  PRIMARY KEY (thread_id, seq)
-);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, seq);

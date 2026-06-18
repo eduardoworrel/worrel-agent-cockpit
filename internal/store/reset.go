@@ -8,8 +8,6 @@ func (s *Store) DataDir() string { return s.dataDir }
 // sessões, segredos, retroativa, chat e settings voltam ao zero. O schema é
 // preservado; o Keychain (chave-mestra do SO) NÃO é tocado.
 var resetTables = []string{
-	"chat_messages", "chat_threads",
-	"retro_clusters", "retro_run_sessions", "retro_runs",
 	"skill_usage", "skill_generations",
 	"secret_audit", "secret_suppressions", "secrets",
 	"suggestions", "transcript_events", "sessions",

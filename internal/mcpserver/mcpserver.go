@@ -58,7 +58,6 @@ func (svc *Service) ServerFor(token string) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "worrel", Version: "0.1.0"}, nil)
 	a := &attribution{svc: svc, token: token}
 	svc.addReadTools(srv, a)
-	svc.addReportTools(srv, a)
 	svc.addSessionTools(srv, a)
 	svc.addSecretTools(srv, a)
 	svc.addAskTools(srv, a)
@@ -111,6 +110,14 @@ func (a *attribution) resolveProject(explicit string) string {
 	}
 	_, pid := a.sessionProject()
 	return pid
+}
+
+// nilIfEmpty converte string vazia em nil (ponteiro); usada para campos opcionais.
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // truncate corta em n runas (não bytes) para não quebrar UTF-8 no meio.

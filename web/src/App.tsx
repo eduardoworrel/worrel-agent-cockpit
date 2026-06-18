@@ -9,7 +9,7 @@ import AskBalloons from './components/AskBalloons';
 import Project from './pages/Project';
 import Settings from './pages/Settings';
 import Terminal from './pages/Terminal';
-import Retro from './pages/Retro';
+import Engines from './pages/Engines';
 import SecretApprovalModal from './components/SecretApprovalModal';
 import NewSessionModal from './components/NewSessionModal';
 import EmptyState from './shell/EmptyState';
@@ -39,6 +39,7 @@ interface ExtractState {
   id: string;
   status: 'idle' | 'busy' | 'done' | 'error';
   result?: DistillResult;
+  reason?: string; // motivo do encerramento (exit code + cauda do stderr do CLI)
 }
 
 function AppInner() {
@@ -94,8 +95,8 @@ function AppInner() {
     // transcript seja podado.
     if (ev.type === 'session.ended') {
       reload();
-      const p = ev.payload as { id?: string };
-      if (p.id) setExtract({ id: p.id, status: 'idle' });
+      const p = ev.payload as { id?: string; reason?: string };
+      if (p.id) setExtract({ id: p.id, status: 'idle', reason: p.reason });
     }
     // Título da sessão derivado do 1º recado: recarrega para refletir na sidebar.
     if (ev.type === 'session.titled') reload();
@@ -147,6 +148,9 @@ function AppInner() {
       ) : (
         <>
           <div className="extract-toast-msg">{t('sessionExtract.prompt')}</div>
+          {extract.reason && (
+            <div className="extract-toast-reason">{extract.reason}</div>
+          )}
           {extract.status === 'error' && (
             <div className="extract-toast-err">{t('sessionExtract.error')}</div>
           )}
@@ -180,19 +184,10 @@ function AppInner() {
       <>
         <Routes>
           <Route
-            path="/retro"
-            element={
-              <main className="app-layout" style={{ flexDirection: 'column', overflow: 'auto' }}>
-                <Retro />
-              </main>
-            }
-          />
-          <Route
             path="*"
             element={
               <EmptyState
                 onNewSession={() => setNewSessionProject(null)}
-                onAnalyzeHistory={() => navigate('/retro')}
               />
             }
           />
@@ -217,16 +212,14 @@ function AppInner() {
         liveIds={liveIds}
         awaitingIds={awaitingIds}
         onStarted={handleSessionCreated}
-        onAnalyzeHistory={() => navigate('/retro')}
       />
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Routes>
-            <Route path="/" element={<Retro />} />
+            <Route path="/" element={<Engines />} />
             <Route path="/projects/:id" element={<Project />} />
             <Route path="/sessions/:id" element={<Terminal />} />
-            <Route path="/retro" element={<Retro />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

@@ -14,6 +14,8 @@ import (
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/claudecode"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/example"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/codex"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/gemini"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/opencode"
@@ -21,14 +23,11 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/ask"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/chat"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/distill"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/handoff"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/httpapi"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mcpserver"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/retention"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/retro"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/vault"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/workspace"
@@ -121,25 +120,6 @@ func main() {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 
-	// Fase 4: motor de varredura, importador e watcher.
-	// Adapters headless por ID (todos os que suportam RunHeadless): reusado para
-	// (a) escolher o adapter das análises pelo setting e (b) override por run na
-	// análise retroativa. pidev fica de fora enquanto RunHeadless não é suportado.
-	retroHeadless := map[string]distill.Headless{cc.ID(): cc, oc.ID(): oc, gem.ID(): gem, cx.ID(): cx, pd.ID(): pd}
-	// Adaptador headless das análises respeita o setting (spec §10): default
-	// claude-code; outro provider quando configurado (evita gastar a quota do Claude).
-	var headless distill.Headless = cc
-	if h, ok := retroHeadless[st.GetSetting("headless_adapter", "claude-code")]; ok {
-		headless = h
-	}
-	eng := distill.New(st, headless, b)
-	// O cockpit lida exclusivamente com sessões iniciadas DENTRO do app (wrapper).
-	// O histórico externo do usuário (todas as sessões de CLI no disco) só é tocado
-	// pelo fluxo de análise retroativa (retro), explícito e opt-in por provedor —
-	// NÃO há mais import automático no boot nem watcher de filesystem vasculhando
-	// ~/.claude/projects. (A varredura de escopo já havia saído do boot pelo mesmo
-	// motivo: evitar ações não solicitadas sobre dados que não são do app.)
-
 	mcp.SetVault(vlt)
 
 	// Handoff: usa o primeiro adaptador headless disponível (preferência: claude-code).
@@ -158,29 +138,11 @@ func main() {
 		}
 	}
 
-	// Applier com bus para eventos de linhagem/auto-modo; liga o auto-aplicador
-	// ao engine para o modo automático opt-in (spec §6) durante o sweep.
+	// Applier manual com bus para eventos de linhagem.
 	applier := apply.New(st, mir, b)
-	eng.SetAutoApplier(applier)
 
-	// Recuperação de sessões órfãs: sessões wrapper que encerraram abruptamente
-	// (crash, terminal fechado, restart) ficam sem resumo e sem sugestões na fila,
-	// pois resumo e distill dependem de ação manual. Aqui, em background, geramos o
-	// resumo de handoff das órfãs sem summary e rodamos a varredura de distill, que
-	// cria as sugestões pendentes. Roda depois de SetAutoApplier para que o Sweep
-	// respeite a política de auto-aplicação.
-	go recoverPendingSessions(st, handoffGen, eng)
-
-	// Fase 8: serviço de análise retroativa. Observadores = adaptadores instalados
-	// (claude-code, opencode), que satisfazem retro.Observer; reusa engine + applier.
-	// retroHeadless (definido acima) mapeia provider→headless p/ override por run
-	// (seletor na tela de análise retroativa). Observadores = adapters que leem
-	// histórico (claude-code, opencode, gemini, codex).
-	retroSvc := retro.New(st, eng, applier, b, []retro.Observer{cc, oc, gem, cx, pd}, retroHeadless)
-
-	// Chat de destilação: reusa o mapa de headless por provider e o adapter do
-	// boot como fallback; gera sugestões (origin=chat) sobre as sessões.
-	chatSvc := chat.NewService(st, retroHeadless, headless, b)
+	engines := engine.NewRegistry()
+	engines.Register(example.Counter{})
 
 	srv := httpapi.New(httpapi.Deps{
 		Store:     st,
@@ -192,13 +154,11 @@ func main() {
 		Workspace: wsManager,
 		Adapters:  reg,
 		Port:      port,
-		Distiller: eng,
 		Vault:     vlt,
 		Handoff:   handoffGen,
 		Spawner:   spawner,
-		Retro:     retroSvc,
-		Chat:      chatSvc,
 		Ask:       askBroker,
+		Engines:   engines,
 	})
 
 	url := fmt.Sprintf("http://%s", ln.Addr().String())
@@ -243,45 +203,6 @@ func runJanitor(ctx context.Context, j *retention.Janitor) {
 	}
 }
 
-// recoverPendingSessions roda, em background no boot, a recuperação de sessões
-// órfãs: gera o resumo de handoff das sessões wrapper encerradas sem summary e
-// dispara a varredura de distill (sugestões pendentes na fila). Idempotente: o
-// resumo só roda em quem está vazio e o Sweep deduplica contra sugestões pendentes.
-func recoverPendingSessions(st *store.Store, handoffGen *handoff.Generator, eng *distill.Engine) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("recuperação de órfãs: panic recuperado: %v", r)
-		}
-	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
-	// 1) Resumos das sessões wrapper encerradas sem summary.
-	if handoffGen != nil {
-		sessions, err := st.SessionsNeedingSummary()
-		if err != nil {
-			log.Printf("recuperação de órfãs: erro ao listar sessões sem resumo: %v", err)
-		} else {
-			for _, sess := range sessions {
-				if _, err := handoffGen.GenerateSummary(ctx, sess.ID); err != nil {
-					log.Printf("recuperação de órfãs: resumo da sessão %s falhou: %v", sess.ID, err)
-					continue
-				}
-			}
-			if n := len(sessions); n > 0 {
-				log.Printf("recuperação de órfãs: %d resumo(s) gerado(s)", n)
-			}
-		}
-	}
-
-	// 2) Varredura de distill: cria sugestões pendentes para sessões não analisadas.
-	if eng != nil {
-		if _, err := eng.Sweep(ctx); err != nil {
-			log.Printf("recuperação de órfãs: varredura de distill falhou: %v", err)
-		}
-	}
-}
-
 // wrapperSpawner implementa httpapi.Spawner usando wrapper.Manager.
 type wrapperSpawner struct {
 	store     *store.Store
@@ -308,11 +229,9 @@ func (ws *wrapperSpawner) Spawn(projectID, primer, continues string) (string, er
 	if err != nil {
 		return "", err
 	}
-	// Substituir o primer pelo handoff primer (memória + resumo + skills),
-	// mantendo o onboarding do worrel no início (BuildSpawnOpts já o aplicou ao
-	// primer default; aqui o substituímos, então reaplicamos).
+	// Substituir o primer pelo handoff primer (memória + resumo + skills).
 	if primer != "" {
-		opts.Primer = wrapper.PrependOnboarding(primer)
+		opts.Primer = primer
 	}
 	spec, err := ws.adapter.BuildInteractive(opts)
 	if err != nil {
