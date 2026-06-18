@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
@@ -81,6 +82,22 @@ func (r *Registry) List() []Spec {
 func (r *Registry) Get(id string) (Engine, bool) {
 	e, ok := r.engines[id]
 	return e, ok
+}
+
+// Run resolve a config (override ⊕ global ⊕ default) e executa o motor sob
+// demanda. Não checa __enabled aqui: disparo sob demanda é uma ação explícita
+// do usuário e roda mesmo com o toggle desligado. Schedulers automáticos (que
+// respeitam __enabled/__trigger) chegam num sub-projeto futuro.
+func (r *Registry) Run(ctx context.Context, st *store.Store, engineID, projectID, sessionID string) error {
+	e, ok := r.Get(engineID)
+	if !ok {
+		return fmt.Errorf("motor desconhecido: %s", engineID)
+	}
+	cfg, err := st.ResolveEngineConfig(engineID, projectID, r.Defaults(engineID))
+	if err != nil {
+		return err
+	}
+	return e.Run(ctx, RunContext{ProjectID: projectID, SessionID: sessionID, Config: cfg, Store: st})
 }
 
 // Defaults devolve o mapa de config-default de um motor, incluindo as chaves
