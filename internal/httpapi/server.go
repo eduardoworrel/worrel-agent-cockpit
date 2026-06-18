@@ -8,6 +8,7 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/ask"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/vault"
@@ -29,6 +30,7 @@ type Deps struct {
 	Handoff   SummaryGeneratorIface // optional; nil = handoff indisponível
 	Spawner   Spawner               // optional; nil = handoff indisponível
 	Ask       *ask.Broker           // pedidos de confirmação/escolha (balões); nil = indisponível
+	Engines *engine.Registry // framework de motores (SP1); nil = indisponível
 }
 
 type Server struct {
@@ -55,6 +57,7 @@ func (s *Server) routes() {
 	s.routesProjects()
 	s.routesFS()
 	s.routesSuggestions()
+	s.routesEngines()
 	s.routesLineage()
 	s.routesSkillPkg()
 	s.routesSessions()

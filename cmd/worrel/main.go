@@ -14,6 +14,8 @@ import (
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/claudecode"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/example"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/codex"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/gemini"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/opencode"
@@ -139,6 +141,9 @@ func main() {
 	// Applier com bus para eventos de linhagem/auto-modo.
 	applier := apply.New(st, mir, b)
 
+	engines := engine.NewRegistry()
+	engines.Register(example.Counter{})
+
 	srv := httpapi.New(httpapi.Deps{
 		Store:     st,
 		Mirror:    mir,
@@ -153,6 +158,7 @@ func main() {
 		Handoff:   handoffGen,
 		Spawner:   spawner,
 		Ask:       askBroker,
+		Engines:   engines,
 	})
 
 	url := fmt.Sprintf("http://%s", ln.Addr().String())
