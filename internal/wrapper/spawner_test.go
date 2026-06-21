@@ -17,7 +17,7 @@ func TestBuildSpawnOpts(t *testing.T) {
 	wm := workspace.New(dir)
 	p, _ := st.CreateProject("App", "")
 	st.AddProjectDir(p.ID, "/tmp/app")
-	st.SaveMemory(p.ID, "# Memória\nUse tabs.", "init")
+	st.CreateMemoryEntry(&store.MemoryEntry{ProjectID: p.ID, Content: "Use tabs.", Category: "convencao"})
 	sess, _ := st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
 
 	opts, err := BuildSpawnOpts(st, wm, sess.ID, 7717, "")
