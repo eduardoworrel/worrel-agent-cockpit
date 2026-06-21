@@ -34,11 +34,18 @@ func BuildSpawnOpts(st *store.Store, wm *workspace.Manager, sessionID string, po
 			return adapter.SpawnOpts{}, err
 		}
 		workdir = ws
-		mem, err := st.GetMemory(sess.ProjectID)
+		delivery, err := st.ResolveEngineConfig("memory", sess.ProjectID,
+			map[string]string{"delivery": "always_inject"})
 		if err != nil {
 			return adapter.SpawnOpts{}, err
 		}
-		primer = mem.Content
+		if delivery["delivery"] != "on_demand" {
+			rendered, err := st.RenderMemory(sess.ProjectID)
+			if err != nil {
+				return adapter.SpawnOpts{}, err
+			}
+			primer = rendered
+		}
 	} else if workdir == "" {
 		// não-classificada sem workspace definido: cria scratch
 		ws, err := wm.ScratchWorkspace(sessionID)

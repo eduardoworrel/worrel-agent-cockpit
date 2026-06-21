@@ -52,6 +52,16 @@ export default function SuggestionsDrawer({ activeProjectId, projects, reloadKey
     }
   }
 
+  function getMemoryEntryRelatedId(sg: Suggestion): string {
+    if (sg.type !== 'add_memory_entry') return '';
+    try {
+      const p = JSON.parse(sg.payload);
+      return typeof p?.related_entry_id === 'string' ? p.related_entry_id : '';
+    } catch {
+      return '';
+    }
+  }
+
   if (collapsed) {
     return (
       <aside className="drawer drawer-collapsed">
@@ -63,14 +73,26 @@ export default function SuggestionsDrawer({ activeProjectId, projects, reloadKey
   }
 
   function renderItem(sg: Suggestion) {
+    const relatedId = getMemoryEntryRelatedId(sg);
     return (
       <div key={sg.id} className="card drawer-card">
         <strong>{sg.title}</strong>
         <SuggestionBody sg={sg} />
         <div className="drawer-card-actions">
-          <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(sg.id, acceptSuggestion)}>
-            {t('suggestions.accept')}
-          </button>
+          {sg.type === 'add_memory_entry' && relatedId ? (
+            <>
+              <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(sg.id, (id) => acceptSuggestion(id))}>
+                {t('suggestions.coexist', 'Coexistir')}
+              </button>
+              <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => act(sg.id, (id) => acceptSuggestion(id, undefined, relatedId))}>
+                {t('suggestions.replaceEntry', 'Substituir entrada')}
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(sg.id, acceptSuggestion)}>
+              {t('suggestions.accept')}
+            </button>
+          )}
           <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => act(sg.id, rejectSuggestion)}>
             {t('suggestions.reject')}
           </button>

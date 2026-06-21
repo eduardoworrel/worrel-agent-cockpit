@@ -240,6 +240,7 @@ export default function SuggestionBody({ sg, skills }: Props) {
     if (norm === 'skill.variant') return 'skill.variant';
     if (norm === 'skill.learned' || norm === 'create.skill' || norm === 'skill') return 'skill.learned';
     if (norm === 'add.memory' || norm === 'add.correction') return 'add_memory';
+    if (norm === 'add.memory.entry') return 'add_memory_entry';
     if (norm === 'create.project') return 'create_project';
     if (norm === 'secret.detected') return 'secret.detected';
     // Any other skill-family type still renders as a skill rather than raw JSON:
@@ -315,6 +316,23 @@ export default function SuggestionBody({ sg, skills }: Props) {
       if (!content) return <RawFallback text={sg.payload} />;
       return (
         <div>
+          <Label>{t('suggestions.memoryEntry')}</Label>
+          <ContentPreview text={content} />
+        </div>
+      );
+    }
+
+    case 'add_memory_entry': {
+      const content = str('content');
+      const category = str('category');
+      if (!content) return <RawFallback text={sg.payload} />;
+      return (
+        <div>
+          {category && (
+            <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 2 }}>
+              {category}
+            </div>
+          )}
           <Label>{t('suggestions.memoryEntry')}</Label>
           <ContentPreview text={content} />
         </div>

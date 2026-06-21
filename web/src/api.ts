@@ -242,8 +242,9 @@ export function createSuggestion(s: Partial<Suggestion>): Promise<Suggestion> {
   return req('/suggestions', { method: 'POST', body: JSON.stringify(s) });
 }
 
-export function acceptSuggestion(id: string, edited?: { title: string; payload: string }): Promise<Suggestion> {
-  return req(`/suggestions/${id}/accept`, {
+export function acceptSuggestion(id: string, edited?: { title: string; payload: string }, supersede?: string): Promise<Suggestion> {
+  const qs = supersede ? `?supersede=${encodeURIComponent(supersede)}` : '';
+  return req(`/suggestions/${id}/accept${qs}`, {
     method: 'POST',
     body: JSON.stringify(edited ?? {}),
   });

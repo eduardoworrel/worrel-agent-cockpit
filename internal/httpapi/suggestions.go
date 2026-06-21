@@ -48,6 +48,14 @@ func (s *Server) routesSuggestions() {
 				return
 			}
 		}
+		if old := r.URL.Query().Get("supersede"); old != "" {
+			if err := s.deps.Applier.AcceptSuperseding(id, old); err != nil {
+				writeErr(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			return
+		}
 		if err := s.deps.Applier.Accept(id); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeErr(w, 404, "sugestão não encontrada")

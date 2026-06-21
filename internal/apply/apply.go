@@ -239,12 +239,58 @@ func (a *Applier) Accept(suggestionID string) error {
 			log.Printf("mirror: %v", err)
 		}
 		a.publish("skill.generation.created", sk.ID, g.Generation, evType)
+	case "add_memory_entry":
+		if _, err := a.applyMemoryEntry(sg, ""); err != nil {
+			return err
+		}
 	case "pipeline":
 		if err := a.ApplyPipeline(sg); err != nil {
 			return err
 		}
 	default:
 		return fmt.Errorf("tipo de sugestão desconhecido: %s", sg.Type)
+	}
+	return a.store.ResolveSuggestion(sg.ID, "accepted")
+}
+
+// applyMemoryEntry cria a memory_entry a partir do payload da sugestão. Se
+// supersedeOldID != "", marca a entrada antiga como superseded pela nova.
+// Devolve o id da nova entrada.
+func (a *Applier) applyMemoryEntry(sg *store.Suggestion, supersedeOldID string) (string, error) {
+	var p struct {
+		Content  string `json:"content"`
+		Category string `json:"category"`
+		Evidence string `json:"evidence"`
+	}
+	if err := json.Unmarshal([]byte(sg.Payload), &p); err != nil {
+		return "", err
+	}
+	e, err := a.store.CreateMemoryEntry(&store.MemoryEntry{
+		ProjectID: sg.ProjectID, Content: p.Content, Category: p.Category, Evidence: p.Evidence,
+	})
+	if err != nil {
+		return "", err
+	}
+	if supersedeOldID != "" {
+		if err := a.store.SupersedeMemoryEntry(supersedeOldID, e.ID); err != nil {
+			return "", err
+		}
+	}
+	return e.ID, nil
+}
+
+// AcceptSuperseding aceita uma sugestão add_memory_entry criando a nova entrada e
+// marcando oldEntryID como superseded por ela. Só válido para add_memory_entry.
+func (a *Applier) AcceptSuperseding(suggestionID, oldEntryID string) error {
+	sg, err := a.store.GetSuggestion(suggestionID)
+	if err != nil {
+		return err
+	}
+	if sg.Type != "add_memory_entry" {
+		return fmt.Errorf("AcceptSuperseding só vale para add_memory_entry, got %q", sg.Type)
+	}
+	if _, err := a.applyMemoryEntry(sg, oldEntryID); err != nil {
+		return err
 	}
 	return a.store.ResolveSuggestion(sg.ID, "accepted")
 }

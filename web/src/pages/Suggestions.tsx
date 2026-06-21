@@ -78,11 +78,21 @@ export default function Suggestions() {
     }
   }
 
-  function handleAccept(sugId: string) {
+  function handleAccept(sugId: string, supersede?: string) {
     return run(async () => {
-      await acceptSuggestion(sugId);
+      await acceptSuggestion(sugId, undefined, supersede);
       setSuggestions((prev) => prev.filter((s) => s.id !== sugId));
     });
+  }
+
+  function getMemoryEntryRelatedId(sg: Suggestion): string {
+    if (sg.type !== 'add_memory_entry') return '';
+    try {
+      const p = JSON.parse(sg.payload);
+      return typeof p?.related_entry_id === 'string' ? p.related_entry_id : '';
+    } catch {
+      return '';
+    }
   }
 
   function beginEdit(sg: Suggestion) {
@@ -287,7 +297,14 @@ export default function Suggestions() {
                             </select>
                           </label>
                         )}
-                        <button className="btn btn-primary" disabled={busy} onClick={() => handleAccept(sg.id)}>{t('suggestions.accept')}</button>
+                        {sg.type === 'add_memory_entry' && getMemoryEntryRelatedId(sg) ? (
+                          <>
+                            <button className="btn btn-primary" disabled={busy} onClick={() => handleAccept(sg.id)}>{t('suggestions.coexist', 'Coexistir')}</button>
+                            <button className="btn btn-secondary" disabled={busy} onClick={() => handleAccept(sg.id, getMemoryEntryRelatedId(sg))}>{t('suggestions.replaceEntry', 'Substituir entrada')}</button>
+                          </>
+                        ) : (
+                          <button className="btn btn-primary" disabled={busy} onClick={() => handleAccept(sg.id)}>{t('suggestions.accept')}</button>
+                        )}
                         {sg.type !== 'secret.detected' && (
                           <button className="btn btn-secondary" disabled={busy} onClick={() => beginEdit(sg)}>{t('suggestions.editAccept')}</button>
                         )}

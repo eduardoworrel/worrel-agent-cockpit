@@ -135,6 +135,16 @@ CREATE TABLE IF NOT EXISTS secret_suppressions (
   hash TEXT PRIMARY KEY,                         -- sha256 do valor cru; valor NUNCA armazenado
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS memory_entries (
+  id            TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL,
+  category      TEXT NOT NULL DEFAULT 'gotcha',
+  evidence      TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'active',
+  superseded_by TEXT NOT NULL DEFAULT '',
+  created_at    INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS engine_config (
   engine_id  TEXT NOT NULL,
   scope_key  TEXT NOT NULL,            -- '' = global; senão project_id
