@@ -163,3 +163,17 @@ CREATE TABLE IF NOT EXISTS engine_config (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (engine_id, scope_key, key)
 );
+CREATE TABLE IF NOT EXISTS skill_candidates (
+  id            TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  signature     TEXT NOT NULL,
+  title         TEXT NOT NULL DEFAULT '',
+  draft         TEXT NOT NULL DEFAULT '{}',
+  evidence      TEXT NOT NULL DEFAULT '[]',
+  occurrences   INTEGER NOT NULL DEFAULT 0,
+  explicit_mark INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'accumulating',
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL,
+  UNIQUE (project_id, signature)
+);
