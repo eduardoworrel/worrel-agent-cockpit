@@ -87,8 +87,8 @@ func (e *Engine) Run(ctx context.Context, rc eng.RunContext) error {
 		}
 		payload, _ := json.Marshal(gt)
 		title := gt.Content
-		if len(title) > 80 {
-			title = title[:80]
+		if r := []rune(title); len(r) > 80 {
+			title = string(r[:80])
 		}
 		if _, err := rc.Store.CreateSuggestion(&store.Suggestion{
 			ProjectID: rc.ProjectID,
