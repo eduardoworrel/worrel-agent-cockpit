@@ -145,6 +145,16 @@ CREATE TABLE IF NOT EXISTS memory_entries (
   superseded_by TEXT NOT NULL DEFAULT '',
   created_at    INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agents (
+  id         TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  slug       TEXT NOT NULL DEFAULT '',
+  name       TEXT NOT NULL,
+  persona    TEXT NOT NULL,
+  evidence   TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS engine_config (
   engine_id  TEXT NOT NULL,
   scope_key  TEXT NOT NULL,            -- '' = global; senão project_id
