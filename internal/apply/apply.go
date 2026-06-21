@@ -343,3 +343,54 @@ func (a *Applier) AutoApply(suggestionID string) error {
 	}
 	return a.store.ResolveSuggestion(sg.ID, "auto_applied")
 }
+
+// AcceptAs aceita uma sugestão skill_or_agente_candidate criando o artefato no
+// destino escolhido pelo usuário: "skill" (workflow estruturado) ou "agente"
+// (persona). Os dois rascunhos já vêm prontos no payload — sem LLM aqui.
+func (a *Applier) AcceptAs(suggestionID, kind string) error {
+	sg, err := a.store.GetSuggestion(suggestionID)
+	if err != nil {
+		return err
+	}
+	if sg.Type != "skill_or_agente_candidate" {
+		return fmt.Errorf("AcceptAs só vale para skill_or_agente_candidate, got %q", sg.Type)
+	}
+	var p struct {
+		SkillDraft struct {
+			Name, Content, Structured string
+		} `json:"skill_draft"`
+		AgenteDraft struct {
+			Name, Persona string
+		} `json:"agente_draft"`
+		Evidence json.RawMessage `json:"evidence"`
+	}
+	if err := json.Unmarshal([]byte(sg.Payload), &p); err != nil {
+		return err
+	}
+	switch kind {
+	case "skill":
+		proj, err := a.store.GetProject(sg.ProjectID)
+		if err != nil {
+			return err
+		}
+		sk, err := a.store.CreateSkill(sg.ProjectID, p.SkillDraft.Name, p.SkillDraft.Content)
+		if err != nil {
+			return err
+		}
+		if p.SkillDraft.Structured != "" {
+			if err := a.store.SetSkillStructured(sk.ID, p.SkillDraft.Structured); err != nil {
+				return err
+			}
+		}
+		if err := a.mirror.WriteSkill(proj.Slug, sk.Slug, p.SkillDraft.Content); err != nil {
+			log.Printf("mirror: %v", err)
+		}
+	case "agente":
+		if _, err := a.store.CreateAgent(sg.ProjectID, p.AgenteDraft.Name, p.AgenteDraft.Persona, string(p.Evidence)); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("kind inválido: %q (use skill|agente)", kind)
+	}
+	return a.store.ResolveSuggestion(sg.ID, "accepted")
+}
