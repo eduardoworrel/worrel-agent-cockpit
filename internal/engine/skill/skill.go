@@ -37,7 +37,7 @@ func (e *Engine) Spec() eng.Spec {
 			{Key: "agent_prompt", Label: "Prompt do rascunho de Agente", Type: "textarea", Default: defaultAgentPrompt},
 		},
 		Config: []eng.ConfigField{
-			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: []string{"hybrid", "llm_full", "heuristic_only"}},
+			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: eng.DetectionModeOptions},
 			{Key: "maturation_threshold", Label: "Sessões p/ maturar", Type: "number", Default: "2"},
 		},
 		OutputType: "suggestion",

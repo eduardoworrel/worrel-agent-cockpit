@@ -21,11 +21,26 @@ const (
 
 // ConfigField descreve um campo editável (config ou prompt) de um motor.
 type ConfigField struct {
-	Key     string   `json:"key"`
-	Label   string   `json:"label"`
-	Type    string   `json:"type"` // "text" | "number" | "textarea" | "select"
-	Default string   `json:"default"`
-	Options []string `json:"options,omitempty"` // valores p/ type "select"
+	Key     string         `json:"key"`
+	Label   string         `json:"label"`
+	Type    string         `json:"type"` // "text" | "number" | "textarea" | "select"
+	Default string         `json:"default"`
+	Options []ConfigOption `json:"options,omitempty"` // opções p/ type "select" (renderizadas como cards)
+}
+
+// ConfigOption é uma escolha de um campo "select": o valor gravado, um rótulo
+// curto e uma descrição do que aquela opção faz (mostrada no card de seleção).
+type ConfigOption struct {
+	Value       string `json:"value"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+}
+
+// DetectionModeOptions é o enum de modo de detecção compartilhado pelos motores.
+var DetectionModeOptions = []ConfigOption{
+	{Value: "hybrid", Label: "Híbrido", Description: "Heurística rápida + LLM nos casos ambíguos. Equilíbrio entre custo e precisão (recomendado)."},
+	{Value: "llm_full", Label: "LLM completo", Description: "Usa o LLM para analisar todo o transcript. Mais preciso, porém mais caro e lento."},
+	{Value: "heuristic_only", Label: "Só heurística", Description: "Apenas regras determinísticas, sem LLM. Grátis e rápido, mas mais grosseiro (mais falso-positivo)."},
 }
 
 // Spec é a declaração de um motor. A UI (config/onboarding) é derivada disto.

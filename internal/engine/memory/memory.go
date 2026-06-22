@@ -26,8 +26,11 @@ func (e *Engine) Spec() eng.Spec {
 		Triggers:    []eng.Trigger{eng.TriggerProjectOpenClose, eng.TriggerOnDemand},
 		Prompts:     []eng.ConfigField{{Key: "prompt", Label: "Prompt do destilador", Type: "textarea", Default: defaultPrompt}},
 		Config: []eng.ConfigField{
-			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: []string{"hybrid", "llm_full", "heuristic_only"}},
-			{Key: "delivery", Label: "Entrega", Type: "select", Default: "always_inject", Options: []string{"always_inject", "on_demand"}},
+			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: eng.DetectionModeOptions},
+			{Key: "delivery", Label: "Entrega", Type: "select", Default: "always_inject", Options: []eng.ConfigOption{
+				{Value: "always_inject", Label: "Sempre injetar", Description: "A memória é injetada automaticamente no início de cada sessão (vira o primer)."},
+				{Value: "on_demand", Label: "Sob demanda", Description: "Não injeta; o agente busca a memória via MCP (get_memory) quando precisar."},
+			}},
 		},
 		OutputType: "suggestion",
 		DefaultOn:  false,

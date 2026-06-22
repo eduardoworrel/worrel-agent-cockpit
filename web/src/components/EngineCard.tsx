@@ -1,4 +1,5 @@
-export type ConfigField = { key: string; label: string; type: string; default: string; options?: string[] }
+export type ConfigOption = { value: string; label: string; description: string }
+export type ConfigField = { key: string; label: string; type: string; default: string; options?: ConfigOption[] }
 export type Spec = {
   id: string; name: string; description: string
   triggers: string[]; prompts: ConfigField[]; config: ConfigField[]
@@ -34,18 +35,35 @@ export default function EngineCard({ item, setConfig, onRun }: {
           </label>
         </div>
       )}
-      {spec.config.map(f => (
-        <div key={f.key} style={{ marginBottom: '0.5rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.2rem' }}>{f.label}</label>
-          {f.options && f.options.length > 0 ? (
-            <select value={config[f.key] ?? f.default} onChange={e => setConfig(spec.id, f.key, e.target.value)}>
-              {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          ) : (
-            <input defaultValue={config[f.key] ?? f.default} onBlur={e => setConfig(spec.id, f.key, e.target.value)} />
-          )}
-        </div>
-      ))}
+      {spec.config.map(f => {
+        const current = config[f.key] ?? f.default
+        return (
+          <div key={f.key} style={{ marginBottom: '0.75rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.35rem' }}>{f.label}</label>
+            {f.options && f.options.length > 0 ? (
+              <div style={{ display: 'grid', gap: '0.4rem' }}>
+                {f.options.map(o => {
+                  const sel = current === o.value
+                  return (
+                    <button key={o.value} type="button" onClick={() => setConfig(spec.id, f.key, o.value)}
+                      style={{
+                        textAlign: 'left', cursor: 'pointer', padding: '0.5rem 0.65rem', borderRadius: '6px',
+                        border: sel ? '2px solid var(--green)' : '1px solid var(--border, #444)',
+                        background: sel ? 'rgba(80,200,120,0.10)' : 'transparent',
+                        color: 'inherit',
+                      }}>
+                      <div style={{ fontWeight: 600 }}>{o.label}{sel ? ' ✓' : ''}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{o.description}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <input defaultValue={current} onBlur={e => setConfig(spec.id, f.key, e.target.value)} />
+            )}
+          </div>
+        )
+      })}
       {spec.prompts.map(f => (
         <div key={f.key} style={{ marginBottom: '0.75rem' }}>
           <label style={{ display: 'block', marginBottom: '0.2rem' }}>{f.label}</label>
