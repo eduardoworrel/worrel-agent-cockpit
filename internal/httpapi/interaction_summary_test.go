@@ -155,3 +155,51 @@ func TestAttachProgress_NoSummarizerNoop(t *testing.T) {
 		t.Fatalf("sem summarizer, progress deve ficar nil: %#v", snap.Progress)
 	}
 }
+
+// countingAdapter é um adapter fake headless (ID "claude-code") usado para
+// confirmar que summarizerFor escolhe o adapter configurado em vez do fallback.
+type countingAdapter struct {
+	baseFakeAdapter
+}
+
+func (countingAdapter) ID() string { return "claude-code" }
+func (countingAdapter) Capabilities() adapter.Caps {
+	return adapter.Caps{Headless: true}
+}
+
+func TestSummarizerFor_UsesConfiguredHarness(t *testing.T) {
+	st, _ := store.Open(t.TempDir() + "/t.db")
+	defer st.Close()
+	_ = st.SetEngineConfig("summary", "harness", "claude-code", "")
+	_ = st.SetEngineConfig("summary", "model", "claude-sonnet-4-6", "")
+
+	reg := adapter.NewRegistry()
+	chosen := &countingAdapter{}
+	reg.Register(chosen)
+
+	srv := &Server{deps: Deps{
+		Store: st, Adapters: reg,
+		Summarizer: &fakeHeadless{out: "fallback"},
+	}}
+	llm, opts := srv.summarizerFor("summary", "")
+	if llm != HeadlessLLM(chosen) {
+		t.Fatal("deveria escolher o adapter configurado (claude-code)")
+	}
+	if opts.Model != "claude-sonnet-4-6" {
+		t.Fatalf("model não propagado: %q", opts.Model)
+	}
+}
+
+func TestSummarizerFor_FallsBackToSummarizer(t *testing.T) {
+	st, _ := store.Open(t.TempDir() + "/t.db")
+	defer st.Close()
+	sum := &fakeHeadless{out: "fallback"}
+	srv := &Server{deps: Deps{Store: st, Adapters: adapter.NewRegistry(), Summarizer: sum}}
+	llm, opts := srv.summarizerFor("summary", "")
+	if llm != HeadlessLLM(sum) {
+		t.Fatal("sem harness configurado, deve cair no Summarizer")
+	}
+	if opts.Model != "" {
+		t.Fatalf("sem model configurado, opts.Model deveria ser vazio: %q", opts.Model)
+	}
+}

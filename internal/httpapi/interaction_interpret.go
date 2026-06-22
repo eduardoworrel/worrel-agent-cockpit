@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/agui"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
@@ -87,7 +86,8 @@ func (s *Server) attachInterpretation(snap *agui.Snapshot) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), interpretTimeout)
 		defer cancel()
-		out, err := s.deps.Summarizer.RunHeadless(ctx, prompt, adapter.HeadlessOpts{})
+		llm, opts := s.summarizerFor("interpret", "")
+		out, err := llm.RunHeadless(ctx, prompt, opts)
 		if err != nil {
 			s.interpret.release(id)
 			return

@@ -50,6 +50,29 @@ func (s *Server) routesEngines() {
 		})
 	})
 
+	s.mux.HandleFunc("GET /api/engines/{id}/settings", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		sessionID := r.URL.Query().Get("session_id")
+		get := func(key string) string {
+			if sessionID != "" {
+				if m, err := s.deps.Store.GetEngineConfig(id, "session:"+sessionID); err == nil {
+					if v, ok := m[key]; ok && v != "" {
+						return v
+					}
+				}
+			}
+			if m, err := s.deps.Store.GetEngineConfig(id, ""); err == nil {
+				return m[key]
+			}
+			return ""
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"enabled": s.deps.Store.EngineEnabled(id, sessionID, id == "interpret"),
+			"harness": get("harness"),
+			"model":   get("model"),
+		})
+	})
+
 	s.mux.HandleFunc("PUT /api/engines/{id}/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.deps.Engines == nil {
 			writeErr(w, http.StatusServiceUnavailable, "motores indisponíveis")

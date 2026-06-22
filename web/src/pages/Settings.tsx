@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getSettings, putSettings, listProjects, listSessions, getEngineEnabled, setEngineEnabled } from '../api';
+import { getSettings, putSettings, listProjects, listSessions } from '../api';
 import EngineCard, { type EngineItem } from '../components/EngineCard';
+import HomeEngineConfig from '../components/HomeEngineConfig';
 import OnboardingWizard from '../components/OnboardingWizard';
 import { getInteractionStyle, setInteractionStyle } from '../interactionStyle';
 import type { InteractionStyle } from '../interactionStyle';
@@ -21,15 +22,6 @@ export default function Settings() {
   const [engines, setEngines] = useState<EngineItem[]>([]);
   const [showWizard, setShowWizard] = useState(false);
   const [tab, setTab] = useState('geral');
-  // Toggles globais de custo dos motores de borda (Plano 3): summary OFF, interpret ON.
-  const [summaryGlobal, setSummaryGlobal] = useState(false);
-  const [interpretGlobal, setInterpretGlobal] = useState(true);
-  useEffect(() => {
-    getEngineEnabled('summary', undefined, false).then(setSummaryGlobal).catch(() => {});
-    getEngineEnabled('interpret', undefined, true).then(setInterpretGlobal).catch(() => {});
-  }, []);
-  const toggleSummaryGlobal = (on: boolean) => { setSummaryGlobal(on); setEngineEnabled('summary', on); };
-  const toggleInterpretGlobal = (on: boolean) => { setInterpretGlobal(on); setEngineEnabled('interpret', on); };
   const [activity, setActivity] = useState<EngineLogEntry[]>([]);
   const loadActivity = () =>
     fetch('/api/engines/activity').then(r => r.json()).then(setActivity).catch(() => setActivity([]));
@@ -177,19 +169,17 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="card" style={{ maxWidth: '760px', marginTop: '1.5rem' }}>
-            <h2 style={{ marginTop: 0 }}>{t('settings.aiCostTitle', 'Inteligência & custo')}</h2>
-            <p style={{ color: 'var(--muted)' }}>
-              {t('settings.aiCostHint', 'Estes recursos usam IA e consomem créditos. Toda execução é auditada (prompt e resposta) na aba Atividade.')}
+          <div style={{ maxWidth: '760px', marginTop: '1rem' }}>
+            <h2 style={{ marginBottom: '0.2rem' }}>{t('settings.aiCostTitle', 'Inteligência & custo')}</h2>
+            <p style={{ color: 'var(--muted)', marginTop: 0 }}>
+              {t('settings.aiCostHint', 'Recursos de IA da Home. Escolha harness e modelo. Toda execução é auditada.')}
             </p>
-            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
-              <input type="checkbox" checked={summaryGlobal} onChange={(e) => toggleSummaryGlobal(e.target.checked)} />
-              <span>{t('settings.aiSummary', 'Resumo de progresso na Home (narração ao vivo das miniaturas)')}</span>
-            </label>
-            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.4rem' }}>
-              <input type="checkbox" checked={interpretGlobal} onChange={(e) => toggleInterpretGlobal(e.target.checked)} />
-              <span>{t('settings.aiInterpret', 'Interpretação para resposta (transforma a fala do agente em opções acionáveis)')}</span>
-            </label>
+            <HomeEngineConfig id="summary" defaultOn={false}
+              title={t('settings.aiSummary', 'Resumo de progresso')}
+              description={t('settings.aiSummaryDesc', 'Narração ao vivo das miniaturas. Desligado mostra a cauda crua (sem custo).')} />
+            <HomeEngineConfig id="interpret" defaultOn={true}
+              title={t('settings.aiInterpret', 'Interpretação para resposta')}
+              description={t('settings.aiInterpretDesc', 'Transforma a fala do agente em opções acionáveis.')} />
           </div>
 
           <div className="card" style={{ maxWidth: '480px', marginTop: '1.5rem', borderColor: 'var(--red)' }}>
