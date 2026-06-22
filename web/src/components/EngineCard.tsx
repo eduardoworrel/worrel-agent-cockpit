@@ -1,4 +1,4 @@
-export type ConfigField = { key: string; label: string; type: string; default: string }
+export type ConfigField = { key: string; label: string; type: string; default: string; options?: string[] }
 export type Spec = {
   id: string; name: string; description: string
   triggers: string[]; prompts: ConfigField[]; config: ConfigField[]
@@ -37,7 +37,13 @@ export default function EngineCard({ item, setConfig, onRun }: {
       {spec.config.map(f => (
         <div key={f.key} style={{ marginBottom: '0.5rem' }}>
           <label style={{ display: 'block', marginBottom: '0.2rem' }}>{f.label}</label>
-          <input defaultValue={config[f.key] ?? f.default} onBlur={e => setConfig(spec.id, f.key, e.target.value)} />
+          {f.options && f.options.length > 0 ? (
+            <select value={config[f.key] ?? f.default} onChange={e => setConfig(spec.id, f.key, e.target.value)}>
+              {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : (
+            <input defaultValue={config[f.key] ?? f.default} onBlur={e => setConfig(spec.id, f.key, e.target.value)} />
+          )}
         </div>
       ))}
       {spec.prompts.map(f => (

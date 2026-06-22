@@ -21,10 +21,11 @@ const (
 
 // ConfigField descreve um campo editável (config ou prompt) de um motor.
 type ConfigField struct {
-	Key     string `json:"key"`
-	Label   string `json:"label"`
-	Type    string `json:"type"` // "text" | "number" | "textarea"
-	Default string `json:"default"`
+	Key     string   `json:"key"`
+	Label   string   `json:"label"`
+	Type    string   `json:"type"` // "text" | "number" | "textarea" | "select"
+	Default string   `json:"default"`
+	Options []string `json:"options,omitempty"` // valores p/ type "select"
 }
 
 // Spec é a declaração de um motor. A UI (config/onboarding) é derivada disto.

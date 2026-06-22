@@ -34,7 +34,7 @@ func (e *Engine) Spec() eng.Spec {
 		Triggers:    []eng.Trigger{eng.TriggerProjectOpenClose, eng.TriggerOnDemand},
 		Prompts:     []eng.ConfigField{{Key: "prompt", Label: "Prompt do roteador", Type: "textarea", Default: defaultPrompt}},
 		Config: []eng.ConfigField{
-			{Key: "detection_mode", Label: "Modo (hybrid|llm_full|heuristic_only)", Type: "text", Default: "hybrid"},
+			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: []string{"hybrid", "llm_full", "heuristic_only"}},
 			{Key: "health_consec_failures", Label: "Falhas consecutivas p/ saúde", Type: "number", Default: "2"},
 		},
 		OutputType: "suggestion",

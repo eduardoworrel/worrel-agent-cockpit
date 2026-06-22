@@ -26,8 +26,8 @@ func (e *Engine) Spec() eng.Spec {
 		Triggers:    []eng.Trigger{eng.TriggerProjectOpenClose, eng.TriggerOnDemand},
 		Prompts:     []eng.ConfigField{{Key: "prompt", Label: "Prompt do destilador", Type: "textarea", Default: defaultPrompt}},
 		Config: []eng.ConfigField{
-			{Key: "detection_mode", Label: "Modo de detecção (hybrid|llm_full|heuristic_only)", Type: "text", Default: "hybrid"},
-			{Key: "delivery", Label: "Entrega (always_inject|on_demand)", Type: "text", Default: "always_inject"},
+			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: []string{"hybrid", "llm_full", "heuristic_only"}},
+			{Key: "delivery", Label: "Entrega", Type: "select", Default: "always_inject", Options: []string{"always_inject", "on_demand"}},
 		},
 		OutputType: "suggestion",
 		DefaultOn:  false,
