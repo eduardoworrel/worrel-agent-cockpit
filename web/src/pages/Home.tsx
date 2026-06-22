@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Session, Suggestion, InteractionSnapshot } from '../api';
-import { listSuggestions, getInteraction } from '../api';
+import { listSuggestions, getInteraction, getEngineEnabled, setEngineEnabled } from '../api';
 import { useEvents } from '../useEvents';
 import TerminalCard from '../components/TerminalCard';
 
@@ -20,6 +20,8 @@ export default function Home({ liveSessions, awaitingIds, onNewSession, reloadKe
   const { t } = useTranslation();
   const [pendingBySession, setPendingBySession] = useState<Record<string, number>>({});
   const [snapshots, setSnapshots] = useState<Record<string, InteractionSnapshot>>({});
+  // Estado do toggle de resumo por IA por sessão (Plano 3: custo on/off).
+  const [summaryOn, setSummaryOn] = useState<Record<string, boolean>>({});
 
   const ids = liveSessions.map((s) => s.id).join(',');
 
@@ -47,8 +49,26 @@ export default function Home({ liveSessions, awaitingIds, onNewSession, reloadKe
       });
   }, [ids]);
 
+  // loadSummaryFlags resolve o toggle de resumo (default OFF) de cada sessão viva.
+  const loadSummaryFlags = useCallback(() => {
+    const list = ids ? ids.split(',') : [];
+    Promise.all(list.map((id) =>
+      getEngineEnabled('summary', id, false).then((on) => [id, on] as const).catch(() => [id, false] as const),
+    )).then((pairs) => {
+      const next: Record<string, boolean> = {};
+      for (const [id, on] of pairs) next[id] = on;
+      setSummaryOn(next);
+    });
+  }, [ids]);
+
+  const toggleSummary = useCallback((id: string, on: boolean) => {
+    setSummaryOn((prev) => ({ ...prev, [id]: on })); // otimista
+    setEngineEnabled('summary', on, id).then(loadSnapshots).catch(() => loadSummaryFlags());
+  }, [loadSnapshots, loadSummaryFlags]);
+
   useEffect(() => { loadCounts(); }, [loadCounts, reloadKey]);
   useEffect(() => { loadSnapshots(); }, [loadSnapshots]);
+  useEffect(() => { loadSummaryFlags(); }, [loadSummaryFlags]);
 
   // Re-busca o snapshot quando o canal de interação de alguma sessão muda:
   // pergunta ab/fechou, ou o turno virou (ocioso/trabalhando/encerrado).
@@ -78,6 +98,8 @@ export default function Home({ liveSessions, awaitingIds, onNewSession, reloadKe
               awaiting={awaitingIds.has(s.id)}
               suggestions={pendingBySession[s.id] ?? 0}
               onActed={loadSnapshots}
+              summaryEnabled={summaryOn[s.id] ?? false}
+              onToggleSummary={(on) => toggleSummary(s.id, on)}
             />
           ))}
         </div>
