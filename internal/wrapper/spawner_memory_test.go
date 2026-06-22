@@ -18,7 +18,7 @@ func TestBuildSpawnInjectsRenderedMemory(t *testing.T) {
 	sess, _ := st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
 
 	// default delivery=always_inject → injeta o render
-	opts, err := BuildSpawnOpts(st, wm, sess.ID, 8080, "")
+	opts, err := BuildSpawnOpts(st, wm, sess.ID, 8080, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestBuildSpawnInjectsRenderedMemory(t *testing.T) {
 
 	// on_demand → não injeta
 	_ = st.SetEngineConfig("memory", "delivery", "on_demand", p.ID)
-	opts, _ = BuildSpawnOpts(st, wm, sess.ID, 8080, "")
+	opts, _ = BuildSpawnOpts(st, wm, sess.ID, 8080, "", "")
 	if strings.Contains(opts.Primer, "use go build") {
 		t.Fatalf("on_demand não deveria injetar memória: %q", opts.Primer)
 	}

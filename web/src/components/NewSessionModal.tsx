@@ -50,7 +50,7 @@ export default function NewSessionModal({ projectId, skill, skillLabel, onCreate
     try {
       let sess: Session;
       if (projectId) {
-        sess = await createSession(projectId, adapterId, skill);
+        sess = await createSession(projectId, adapterId, skill ? { skill } : undefined);
       } else {
         sess = await createFreeSession(adapterId, dirs.length > 0 ? dirs : undefined, skill);
       }

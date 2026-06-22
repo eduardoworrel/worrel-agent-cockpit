@@ -20,7 +20,7 @@ func TestBuildSpawnOpts(t *testing.T) {
 	st.CreateMemoryEntry(&store.MemoryEntry{ProjectID: p.ID, Content: "Use tabs.", Category: "convencao"})
 	sess, _ := st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
 
-	opts, err := BuildSpawnOpts(st, wm, sess.ID, 7717, "")
+	opts, err := BuildSpawnOpts(st, wm, sess.ID, 7717, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestBuildSpawnOptsWithSkill(t *testing.T) {
 	wm := workspace.New(dir)
 	p, _ := st.CreateProject("App", "")
 	sess, _ := st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "opencode", Mode: "wrapper"})
-	opts, err := BuildSpawnOpts(st, wm, sess.ID, 7717, "# Skill Deploy\nPergunte o ambiente.")
+	opts, err := BuildSpawnOpts(st, wm, sess.ID, 7717, "# Skill Deploy\nPergunte o ambiente.", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestBuildSpawnOptsUsesWorkspace(t *testing.T) {
 	sess, _ := s.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper"})
 
 	wm := workspace.New(dir)
-	opts, err := BuildSpawnOpts(s, wm, sess.ID, 7717, "")
+	opts, err := BuildSpawnOpts(s, wm, sess.ID, 7717, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

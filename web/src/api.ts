@@ -292,10 +292,19 @@ export function listAdapters(): Promise<DetectedAdapter[]> {
   return req('/adapters');
 }
 
-export function createSession(projectId: string, adapter: string, skill?: string): Promise<Session> {
+export function createSession(
+  projectId: string,
+  adapter: string,
+  opts?: { skill?: string; skillId?: string; agentId?: string }
+): Promise<Session> {
   return req(`/projects/${projectId}/sessions`, {
     method: 'POST',
-    body: JSON.stringify({ adapter, skill: skill ?? '' }),
+    body: JSON.stringify({
+      adapter,
+      skill: opts?.skill ?? '',
+      skill_id: opts?.skillId ?? '',
+      agent_id: opts?.agentId ?? '',
+    }),
   });
 }
 

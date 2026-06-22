@@ -227,7 +227,7 @@ func (ws *wrapperSpawner) Spawn(projectID, primer, continues string) (string, er
 		return "", err
 	}
 	// Monta SpawnOpts a partir do store (memória + MCP token), depois sobrescreve o primer.
-	opts, err := wrapper.BuildSpawnOpts(ws.store, ws.workspace, sess.ID, ws.port, "")
+	opts, err := wrapper.BuildSpawnOpts(ws.store, ws.workspace, sess.ID, ws.port, "", "")
 	if err != nil {
 		return "", err
 	}

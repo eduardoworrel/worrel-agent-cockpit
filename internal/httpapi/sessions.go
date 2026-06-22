@@ -38,13 +38,13 @@ func (s *Server) handleAdapters(w http.ResponseWriter, r *http.Request) {
 }
 
 // spawnFor monta opts/spec e spawna; usado pela sessão de projeto e pela livre.
-func (s *Server) spawnFor(w http.ResponseWriter, sess *store.Session, adapterID, skill string) {
+func (s *Server) spawnFor(w http.ResponseWriter, sess *store.Session, adapterID, skill, persona string) {
 	ad, ok := s.deps.Adapters.Get(adapterID)
 	if !ok {
 		writeErr(w, 400, "adaptador desconhecido: "+adapterID)
 		return
 	}
-	opts, err := wrapper.BuildSpawnOpts(s.deps.Store, s.deps.Workspace, sess.ID, s.deps.Port, skill)
+	opts, err := wrapper.BuildSpawnOpts(s.deps.Store, s.deps.Workspace, sess.ID, s.deps.Port, skill, persona)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -74,7 +74,9 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("id")
 	var body struct {
 		Adapter string `json:"adapter"`
-		Skill   string `json:"skill"` // conteúdo opcional p/ "iniciar a partir de skill"
+		Skill   string `json:"skill"`    // conteúdo opcional p/ "iniciar a partir de skill"
+		SkillID string `json:"skill_id"` // id de skill a resolver no backend
+		AgentID string `json:"agent_id"` // id de agente; persona vai para SystemAppend
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, 400, "body inválido: "+err.Error())
@@ -84,6 +86,17 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "adaptador desconhecido: "+body.Adapter)
 		return
 	}
+	if body.SkillID != "" && body.Skill == "" {
+		if sk, err := s.deps.Store.GetSkill(body.SkillID); err == nil {
+			body.Skill = sk.Content
+		}
+	}
+	persona := ""
+	if body.AgentID != "" {
+		if ag, err := s.deps.Store.GetAgent(body.AgentID); err == nil {
+			persona = ag.Persona
+		}
+	}
 	sess, err := s.deps.Store.CreateSession(&store.Session{
 		ProjectID: projectID, Adapter: body.Adapter, Mode: "wrapper",
 	})
@@ -91,7 +104,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	s.spawnFor(w, sess, body.Adapter, body.Skill)
+	s.spawnFor(w, sess, body.Adapter, body.Skill, persona)
 }
 
 func (s *Server) handleCreateFreeSession(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +136,7 @@ func (s *Server) handleCreateFreeSession(w http.ResponseWriter, r *http.Request)
 	}
 	_ = s.deps.Store.SetSessionWorkspaceDir(sess.ID, scratch)
 	sess, _ = s.deps.Store.GetSession(sess.ID)
-	s.spawnFor(w, sess, body.Adapter, body.Skill)
+	s.spawnFor(w, sess, body.Adapter, body.Skill, "")
 }
 
 func (s *Server) handleClassifySession(w http.ResponseWriter, r *http.Request) {

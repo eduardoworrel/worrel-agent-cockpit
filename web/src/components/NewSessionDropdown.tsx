@@ -52,7 +52,7 @@ export default function NewSessionDropdown({ projectId, anchor, onClose, onStart
     setBusy(true);
     try {
       const sess = projectId
-        ? await createSession(projectId, adapter, skillId || undefined)
+        ? await createSession(projectId, adapter, skillId ? { skillId } : undefined)
         : await createFreeSession(adapter, [], skillId || undefined);
       onStarted(sess);
     } catch {
