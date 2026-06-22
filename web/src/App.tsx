@@ -11,8 +11,6 @@ import Settings from './pages/Settings';
 import SessionRoute from './pages/SessionRoute';
 import SecretApprovalModal from './components/SecretApprovalModal';
 import NewSessionWizard from './components/NewSessionWizard';
-import InteractionStyleOnboarding from './components/InteractionStyleOnboarding';
-import { hasChosenInteractionStyle } from './interactionStyle';
 import EmptyState from './shell/EmptyState';
 import AppNav from './shell/AppNav';
 import Home from './pages/Home';
@@ -50,7 +48,6 @@ function AppInner() {
   const { loading, projects, wrapperSessions, liveIds, isEmpty, reload } = useAppState();
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [showWizard, setShowWizard] = useState(false);
-  const [needStyle, setNeedStyle] = useState(!hasChosenInteractionStyle());
   const [reloadKey, setReloadKey] = useState(0);
   const [extract, setExtract] = useState<ExtractState | null>(null);
   const [asks, setAsks] = useState<AskRequest[]>([]);
@@ -238,7 +235,6 @@ function AppInner() {
       {showWizard && (
         <NewSessionWizard onCreated={handleSessionCreated} onClose={() => setShowWizard(false)} />
       )}
-      {needStyle && <InteractionStyleOnboarding onChosen={() => setNeedStyle(false)} />}
       {approval && (
         <SecretApprovalModal requestId={approval.requestId} secretName={approval.secretName} onDone={() => setApproval(null)} />
       )}

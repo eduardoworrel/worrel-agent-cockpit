@@ -92,12 +92,16 @@ func (s *Server) attachInterpretation(snap *agui.Snapshot) {
 	}()
 }
 
-// interpretationToInterrupt traduz a classificação num Interrupt sem request_id
-// (a resposta é um prompt novo, não uma decisão de permissão).
+// interpretationToInterrupt vira um Interrupt SÓ quando há opções discretas reais
+// (kind=choice). Para fala comum (saudação, pergunta aberta, statement) devolve
+// nil — a sessão fica em chat livre, sem transformar tudo numa "decisão".
 func interpretationToInterrupt(r agui.Interpretation, fallback string) *agui.Interrupt {
+	if r.Kind != agui.KindChoice || len(r.Options) == 0 {
+		return nil
+	}
 	prompt := r.Prompt
 	if prompt == "" {
 		prompt = fallback
 	}
-	return &agui.Interrupt{Kind: r.Kind, Prompt: prompt, Options: r.Options}
+	return &agui.Interrupt{Kind: agui.KindChoice, Prompt: prompt, Options: r.Options}
 }
