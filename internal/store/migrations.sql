@@ -165,6 +165,12 @@ CREATE TABLE IF NOT EXISTS agent_generations (
   created_at     INTEGER NOT NULL,
   UNIQUE (agent_id, generation)
 );
+CREATE TABLE IF NOT EXISTS engine_runs (
+  engine_id  TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  ran_at     INTEGER NOT NULL,
+  PRIMARY KEY (engine_id, session_id)
+);
 CREATE TABLE IF NOT EXISTS engine_config (
   engine_id  TEXT NOT NULL,
   scope_key  TEXT NOT NULL,            -- '' = global; senão project_id
