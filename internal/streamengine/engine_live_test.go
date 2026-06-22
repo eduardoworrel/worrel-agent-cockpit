@@ -25,7 +25,7 @@ func TestEngineLive(t *testing.T) {
 	s, err := Start(ctx, "live-1", cwd, Opts{Mode: "default"}, func(string) { select {
 		case changes <- struct{}{}:
 		default:
-		} })
+		} }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

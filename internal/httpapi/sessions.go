@@ -30,7 +30,21 @@ func (s *Server) routesSessions() {
 	s.mux.HandleFunc("POST /api/sessions", s.handleCreateFreeSession)
 	s.mux.HandleFunc("POST /api/sessions/{id}/classify", s.handleClassifySession)
 	s.mux.HandleFunc("POST /api/sessions/{id}/promote", s.handlePromoteSession)
+	s.mux.HandleFunc("POST /api/sessions/{id}/archive", s.handleArchiveSession)
 	s.mux.HandleFunc("GET /api/sessions/active", s.handleActiveSessions)
+}
+
+// handleArchiveSession marca a sessão como arquivada: ela some da listagem
+// padrão (histórico) sem ser apagada — transcript, sugestões e auditoria
+// permanecem. Idempotente em relação ao status.
+func (s *Server) handleArchiveSession(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.deps.Store.ArchiveSession(id); err != nil {
+		notFoundOr500(w, err, "sessão não encontrada")
+		return
+	}
+	s.deps.Bus.Publish(bus.Event{Type: "session.archived", Payload: map[string]any{"id": id}})
+	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleAdapters(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +155,9 @@ func (s *Server) handleCreateFreeSession(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleClassifySession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	var body struct{ ProjectID string `json:"project_id"` }
+	var body struct {
+		ProjectID string `json:"project_id"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ProjectID == "" {
 		writeErr(w, 400, "project_id obrigatório")
 		return

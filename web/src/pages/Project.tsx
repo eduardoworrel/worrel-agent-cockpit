@@ -14,6 +14,7 @@ import {
   createSkill,
   updateSkill,
   listSessions,
+  archiveSession,
   listSuggestions,
   acceptSuggestion,
   rejectSuggestion,
@@ -75,6 +76,8 @@ export default function Project() {
 
   // Sessions
   const [sessions, setSessions] = useState<Session[]>([]);
+  // Sessão alvo do modal de confirmação de arquivamento (null = fechado).
+  const [archiveTarget, setArchiveTarget] = useState<Session | null>(null);
   const [adapters, setAdapters] = useState<DetectedAdapter[]>([]);
   const [showNewSession, setShowNewSession] = useState(false);
   // Quando preenchido, o NewSessionModal injeta este conteúdo (skill/pipeline) no primer.
@@ -295,6 +298,15 @@ export default function Project() {
     return run(async () => {
       const r = await postHandoff(sessionId);
       navigate(`/sessions/${r.new_id}`);
+    });
+  }
+
+  // Arquiva a sessão (só após confirmação): some do histórico sem ser apagada.
+  function handleArchive(sessionId: string) {
+    return run(async () => {
+      await archiveSession(sessionId);
+      setArchiveTarget(null);
+      if (id) setSessions(await listSessions(id));
     });
   }
 
@@ -581,7 +593,7 @@ export default function Project() {
                   // Compute continuedBy from the loaded list (inverse of continues)
                   const continuedBy = sessions.find((other) => other.continues === s.id);
                   return (
-                  <tr key={s.id}>
+                  <tr key={s.id} className="session-row">
                     <td>{s.adapter}</td>
                     <td>{s.mode}</td>
                     <td>
@@ -619,6 +631,16 @@ export default function Project() {
                         >
                           ↻ {t('sessions.resume')}
                         </button>
+                        <button
+                          className="btn btn-secondary row-archive"
+                          style={{ fontSize: '0.8rem' }}
+                          disabled={busy}
+                          aria-label={t('sessions.archive') as string}
+                          title={t('sessions.archive') as string}
+                          onClick={() => setArchiveTarget(s)}
+                        >
+                          🗄 {t('sessions.archive')}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -627,6 +649,39 @@ export default function Project() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {archiveTarget && (
+        <div className="modal-overlay" onClick={() => !busy && setArchiveTarget(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="archive-confirm-title" style={{ marginTop: 0 }}>{t('sessions.archiveConfirmTitle')}</h3>
+            <p>{t('sessions.archiveConfirmMsg')}</p>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                disabled={busy}
+                onClick={() => setArchiveTarget(null)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                disabled={busy}
+                onClick={() => handleArchive(archiveTarget.id)}
+              >
+                {t('sessions.archive')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

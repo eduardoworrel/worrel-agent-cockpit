@@ -33,6 +33,9 @@ type Session struct {
 
 	// onChange é chamado a cada mudança de estado (a Home rebusca o Snapshot).
 	onChange func(sessionID string)
+	// persist grava cada linha do histórico no store (durável), para que o chat
+	// sobreviva ao restart do app. Pode ser nil (sessão efêmera).
+	persist func(role, text string)
 
 	mu        sync.Mutex
 	message   string          // última fala do assistant
@@ -93,7 +96,7 @@ func mcpConfigJSON(url string) string {
 
 // Start spawna o claude no cwd com as opções dadas e começa a ler o stream.
 // onChange é notificado a cada transição (pode ser nil).
-func Start(ctx context.Context, sessionID, cwd string, o Opts, onChange func(string)) (*Session, error) {
+func Start(ctx context.Context, sessionID, cwd string, o Opts, onChange func(string), persist func(role, text string)) (*Session, error) {
 	cmd := exec.CommandContext(ctx, "claude", claudeArgs(o)...)
 	cmd.Dir = cwd
 	stdin, err := cmd.StdinPipe()
@@ -110,7 +113,7 @@ func Start(ctx context.Context, sessionID, cwd string, o Opts, onChange func(str
 	s := &Session{
 		id: sessionID, cmd: cmd,
 		stdin: json.NewEncoder(stdin), stdinW: stdin,
-		onChange: onChange, state: agui.StateWorking,
+		onChange: onChange, persist: persist, state: agui.StateWorking,
 	}
 	go s.readLoop(bufio.NewReaderSize(stdout, 1<<20))
 	return s, nil
@@ -133,11 +136,13 @@ func (s *Session) Snapshot() agui.Snapshot {
 
 // SendPrompt manda um novo turno do usuário para a sessão.
 func (s *Session) SendPrompt(text string) error {
+	line := agui.HistoryLine{Role: "you", Text: text}
 	s.mu.Lock()
 	s.state = agui.StateWorking
 	s.toolCalls = nil
-	s.history = append(s.history, agui.HistoryLine{Role: "you", Text: text})
+	s.history = append(s.history, line)
 	s.mu.Unlock()
+	s.persistLines(line)
 	s.notify()
 	return s.write(map[string]any{
 		"type": "user",
@@ -161,8 +166,10 @@ func (s *Session) Respond(allow bool) error {
 		decision = "permitiu"
 		s.state = agui.StateWorking // volta a trabalhar após autorizar
 	}
-	s.history = append(s.history, agui.HistoryLine{Role: "system", Text: "você " + decision + " " + tool})
+	sysLine := agui.HistoryLine{Role: "system", Text: "você " + decision + " " + tool}
+	s.history = append(s.history, sysLine)
 	s.mu.Unlock()
+	s.persistLines(sysLine)
 	if reqID == nil {
 		return fmt.Errorf("nenhuma permissão pendente")
 	}
@@ -211,6 +218,18 @@ func (s *Session) notify() {
 	}
 }
 
+// persistLines grava as linhas dadas no store (durável), fora do lock. É o que
+// permite ao chat sobreviver ao restart: na volta, a borda HTTP reconstrói o
+// histórico a partir desses eventos quando a sessão não está mais viva na memória.
+func (s *Session) persistLines(lines ...agui.HistoryLine) {
+	if s.persist == nil {
+		return
+	}
+	for _, l := range lines {
+		s.persist(l.Role, l.Text)
+	}
+}
+
 // readLoop consome o stream-json e atualiza o estado.
 func (s *Session) readLoop(r *bufio.Reader) {
 	dec := json.NewDecoder(r)
@@ -247,6 +266,7 @@ func (s *Session) handle(ev map[string]any) {
 func (s *Session) handleAssistant(ev map[string]any) {
 	msg, _ := ev["message"].(map[string]any)
 	content, _ := msg["content"].([]any)
+	var added []agui.HistoryLine
 	s.mu.Lock()
 	for _, b := range content {
 		bm, _ := b.(map[string]any)
@@ -256,16 +276,21 @@ func (s *Session) handleAssistant(ev map[string]any) {
 				s.message = t
 				// NÃO vira progress: o card mostra EVENTOS NARRADOS (gerados pelo
 				// summarizer), não as mensagens cruas. Aqui só guardamos o histórico.
-				s.history = append(s.history, agui.HistoryLine{Role: "ai", Text: t})
+				line := agui.HistoryLine{Role: "ai", Text: t}
+				s.history = append(s.history, line)
+				added = append(added, line)
 			}
 		case "tool_use":
 			name := asString(bm["name"])
 			sum := summarizeInput(bm["input"])
 			s.toolCalls = append(s.toolCalls, agui.ToolCall{Name: name, Summary: sum})
-			s.history = append(s.history, agui.HistoryLine{Role: "tool", Text: name + " " + sum})
+			line := agui.HistoryLine{Role: "tool", Text: name + " " + sum}
+			s.history = append(s.history, line)
+			added = append(added, line)
 		}
 	}
 	s.mu.Unlock()
+	s.persistLines(added...)
 	s.notify()
 }
 
@@ -274,7 +299,7 @@ func (s *Session) handleAssistant(ev map[string]any) {
 func (s *Session) handleUser(ev map[string]any) {
 	msg, _ := ev["message"].(map[string]any)
 	content, _ := msg["content"].([]any)
-	var changed bool
+	var added []agui.HistoryLine
 	s.mu.Lock()
 	for _, b := range content {
 		bm, _ := b.(map[string]any)
@@ -285,12 +310,14 @@ func (s *Session) handleUser(ev map[string]any) {
 			if len(txt) > 200 {
 				txt = txt[:199] + "…"
 			}
-			s.history = append(s.history, agui.HistoryLine{Role: "tool", Text: "→ " + txt})
-			changed = true
+			line := agui.HistoryLine{Role: "tool", Text: "→ " + txt}
+			s.history = append(s.history, line)
+			added = append(added, line)
 		}
 	}
 	s.mu.Unlock()
-	if changed {
+	if len(added) > 0 {
+		s.persistLines(added...)
 		s.notify()
 	}
 }

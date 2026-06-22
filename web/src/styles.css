@@ -390,6 +390,18 @@ label {
 
 table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 
+/* Ação de arquivar: revelada só ao passar o cursor sobre a linha da sessão. */
+.session-row .row-archive {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.session-row:hover .row-archive,
+.session-row:focus-within .row-archive {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 
 th {

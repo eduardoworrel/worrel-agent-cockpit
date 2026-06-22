@@ -7,25 +7,25 @@ import (
 )
 
 type Session struct {
-	ID           string  `json:"id"`
-	ProjectID    string  `json:"project_id"`
-	Adapter      string  `json:"adapter"`
-	ExternalRef  *string `json:"external_ref"`
-	Mode         string  `json:"mode"` // wrapper | observed
-	Title        string  `json:"title"`
-	Status       string  `json:"status"` // active | ended | archived
-	Continues    *string `json:"continues"`
-	MCPToken     *string `json:"-"`
-	StartedAt    int64   `json:"started_at"`
-	EndedAt      *int64  `json:"ended_at"`
-	AnalyzedAt   *int64  `json:"analyzed_at"`
-	ContextUsed  int64   `json:"context_used"`
-	ContextLimit int64   `json:"context_limit"`
-	Summary          string `json:"summary"`
-	TranscriptPruned bool   `json:"transcript_pruned"`
-	WorkspaceDir     string `json:"workspace_dir"`
-	SourceDir        string `json:"source_dir"`
-	EndReason        string `json:"end_reason"`
+	ID               string  `json:"id"`
+	ProjectID        string  `json:"project_id"`
+	Adapter          string  `json:"adapter"`
+	ExternalRef      *string `json:"external_ref"`
+	Mode             string  `json:"mode"` // wrapper | observed
+	Title            string  `json:"title"`
+	Status           string  `json:"status"` // active | ended | archived
+	Continues        *string `json:"continues"`
+	MCPToken         *string `json:"-"`
+	StartedAt        int64   `json:"started_at"`
+	EndedAt          *int64  `json:"ended_at"`
+	AnalyzedAt       *int64  `json:"analyzed_at"`
+	ContextUsed      int64   `json:"context_used"`
+	ContextLimit     int64   `json:"context_limit"`
+	Summary          string  `json:"summary"`
+	TranscriptPruned bool    `json:"transcript_pruned"`
+	WorkspaceDir     string  `json:"workspace_dir"`
+	SourceDir        string  `json:"source_dir"`
+	EndReason        string  `json:"end_reason"`
 }
 
 type TranscriptEvent struct {
@@ -85,11 +85,12 @@ func scanSession(r rowScanner) (*Session, error) {
 }
 
 // ListSessions com projectID vazio lista todas (mais recentes primeiro).
+// Sessões arquivadas (status='archived') são omitidas da listagem padrão.
 func (s *Store) ListSessions(projectID string) ([]*Session, error) {
-	q := sessionCols
+	q := sessionCols + ` WHERE status != 'archived'`
 	args := []any{}
 	if projectID != "" {
-		q += ` WHERE project_id=?`
+		q += ` AND project_id=?`
 		args = append(args, projectID)
 	}
 	q += ` ORDER BY started_at DESC`
@@ -278,8 +279,14 @@ func (s *Store) SetSessionSummary(id, summary string) error {
 
 // ArchiveSession marca a sessão antiga como arquivada (handoff).
 func (s *Store) ArchiveSession(id string) error {
-	_, err := s.db.Exec(`UPDATE sessions SET status='archived', ended_at=COALESCE(ended_at, ?) WHERE id=?`, now(), id)
-	return err
+	res, err := s.db.Exec(`UPDATE sessions SET status='archived', ended_at=COALESCE(ended_at, ?) WHERE id=?`, now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // ContinuedBy devolve o id da sessão que continua `id` (ou nil).

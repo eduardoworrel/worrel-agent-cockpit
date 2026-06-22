@@ -306,6 +306,10 @@ export function listSessions(projectId?: string): Promise<Session[]> {
   return req(`/sessions${qs}`);
 }
 
+export function archiveSession(id: string): Promise<{ ok: boolean }> {
+  return req(`/sessions/${id}/archive`, { method: 'POST' });
+}
+
 export interface DetectedAdapter {
   id: string;
   installed: { present: boolean; path: string; version: string };

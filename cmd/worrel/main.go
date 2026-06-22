@@ -155,6 +155,11 @@ func main() {
 			_ = st.EndSession(id)
 			b.Publish(bus.Event{Type: "session.ended", Payload: map[string]any{"id": id}})
 		}
+	}, func(id, role, text string) {
+		// Persiste cada linha do chat (kind="history") para o transcript
+		// sobreviver ao restart: na volta, agui.Build reconstrói o histórico
+		// a partir desses eventos quando a sessão não está mais viva na memória.
+		_ = st.AppendTranscriptEvent(id, role, "history", text, 0, 0)
 	})
 
 	// Applier manual com bus para eventos de linhagem.

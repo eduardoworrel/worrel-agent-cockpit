@@ -20,7 +20,22 @@ func Build(sessionID string, ended bool, events []*store.TranscriptEvent, pendin
 	snap.UserMessage = lastText(events, "user")
 	snap.ToolCalls = trailingToolCalls(events)
 	snap.Interrupt = firstInterrupt(sessionID, pending)
+	snap.History = historyOf(events)
 	return snap
+}
+
+// historyOf reconstrói o transcript de conversa (visão de chat) a partir dos
+// eventos kind="history" persistidos pelo motor stream-json. É o que faz o chat
+// reaparecer após o restart do app, quando a sessão não está mais viva na
+// memória do motor. Sessões legadas (sem esses eventos) ficam com History vazio.
+func historyOf(events []*store.TranscriptEvent) []HistoryLine {
+	var out []HistoryLine
+	for _, e := range events {
+		if e.Kind == "history" {
+			out = append(out, HistoryLine{Role: e.Role, Text: e.Content})
+		}
+	}
+	return out
 }
 
 // stateOf deriva o estado macro: encerrada > vez do usuário (último evento é do

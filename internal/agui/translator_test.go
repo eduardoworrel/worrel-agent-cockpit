@@ -11,6 +11,34 @@ func ev(role, kind, content string) *store.TranscriptEvent {
 	return &store.TranscriptEvent{Role: role, Kind: kind, Content: content}
 }
 
+func TestBuild_HistoryFromPersistedEvents(t *testing.T) {
+	// Eventos kind="history" persistidos pelo motor stream-json (sobreviver ao
+	// restart): Build reconstrói o transcript de chat na ordem, ignorando outros.
+	events := []*store.TranscriptEvent{
+		ev("you", "history", "rode os testes"),
+		ev("ai", "history", "claro, rodando"),
+		ev("tool", "history", "Bash {\"command\":\"go test\"}"),
+		ev("assistant", "text", "ignore: não é history"),
+		ev("system", "history", "você permitiu Bash"),
+	}
+	snap := Build("s1", true, events, nil)
+
+	want := []HistoryLine{
+		{Role: "you", Text: "rode os testes"},
+		{Role: "ai", Text: "claro, rodando"},
+		{Role: "tool", Text: "Bash {\"command\":\"go test\"}"},
+		{Role: "system", Text: "você permitiu Bash"},
+	}
+	if len(snap.History) != len(want) {
+		t.Fatalf("History len = %d, want %d (%+v)", len(snap.History), len(want), snap.History)
+	}
+	for i, w := range want {
+		if snap.History[i] != w {
+			t.Errorf("History[%d] = %+v, want %+v", i, snap.History[i], w)
+		}
+	}
+}
+
 func TestBuild_AwaitingWithContext(t *testing.T) {
 	events := []*store.TranscriptEvent{
 		ev("user", "text", "faça o update no db"),
