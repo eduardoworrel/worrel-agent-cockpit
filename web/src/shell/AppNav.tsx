@@ -35,12 +35,12 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
         className={`appnav-term${awaitingIds.has(s.id) ? ' needs-attention' : ''}${isLive ? ' live' : ''}`}>
         <span className="appnav-term-top">
           <ProviderBadge adapter={s.adapter} />
+          <span className="appnav-term-time">{time}</span>
         </span>
         <span className="appnav-term-name">
           {isLive && <span className="appnav-live-dot" aria-hidden="true" />}
           <span className="appnav-term-label">{name}</span>
         </span>
-        <span className="appnav-term-time">{time}</span>
       </NavLink>
     );
   }
@@ -89,7 +89,7 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
         )}
       </nav>
       <div className="appnav-foot">
-        <NavLink to="/settings" className="appnav-link">⚙ {t('nav.settings')}</NavLink>
+        <NavLink to="/settings" className="appnav-link">{t('nav.settings')}</NavLink>
       </div>
     </aside>
   );
