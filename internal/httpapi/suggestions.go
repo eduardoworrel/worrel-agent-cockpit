@@ -50,7 +50,7 @@ func (s *Server) routesSuggestions() {
 		}
 		if old := r.URL.Query().Get("supersede"); old != "" {
 			if err := s.deps.Applier.AcceptSuperseding(id, old); err != nil {
-				writeErr(w, http.StatusInternalServerError, err.Error())
+				writeAcceptErr(w, err)
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -58,22 +58,14 @@ func (s *Server) routesSuggestions() {
 		}
 		if as := r.URL.Query().Get("as"); as != "" {
 			if err := s.deps.Applier.AcceptAs(id, as); err != nil {
-				writeErr(w, http.StatusInternalServerError, err.Error())
+				writeAcceptErr(w, err)
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 			return
 		}
 		if err := s.deps.Applier.Accept(id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeErr(w, 404, "sugestão não encontrada")
-				return
-			}
-			if errors.Is(err, apply.ErrAlreadyResolved) {
-				writeErr(w, 409, err.Error())
-				return
-			}
-			writeErr(w, 500, err.Error())
+			writeAcceptErr(w, err)
 			return
 		}
 		sg, err := s.deps.Store.GetSuggestion(id)
@@ -134,5 +126,19 @@ func (s *Server) resolveHandler(status string) http.HandlerFunc {
 		}
 		s.deps.Bus.Publish(bus.Event{Type: "suggestion.resolved", Payload: sg})
 		writeJSON(w, 200, sg)
+	}
+}
+
+// writeAcceptErr mapeia erros de aceitar sugestão para o status HTTP certo:
+// sugestão inexistente → 404; já resolvida → 409; demais → 500. Usado por
+// todos os caminhos de accept (genérico, ?supersede=, ?as=).
+func writeAcceptErr(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		writeErr(w, 404, "sugestão não encontrada")
+	case errors.Is(err, apply.ErrAlreadyResolved):
+		writeErr(w, 409, err.Error())
+	default:
+		writeErr(w, 500, err.Error())
 	}
 }
