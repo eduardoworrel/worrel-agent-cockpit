@@ -38,7 +38,7 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
         </span>
         <span className="appnav-term-name">
           {isLive && <span className="appnav-live-dot" aria-hidden="true" />}
-          {name}
+          <span className="appnav-term-label">{name}</span>
         </span>
         <span className="appnav-term-time">{time}</span>
       </NavLink>

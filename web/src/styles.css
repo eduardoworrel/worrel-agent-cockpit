@@ -1779,8 +1779,9 @@ tr:last-child td { border-bottom: none; }
 .appnav-term-top { display: flex; justify-content: flex-end; min-height: 13px; }
 .appnav-term-name {
   display: flex; align-items: center; gap: 6px; color: var(--ink-soft);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; line-height: 1.3;
+  min-width: 0; line-height: 1.3; padding-left: 1px;
 }
+.appnav-term-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .appnav-term-time { align-self: flex-end; font-family: var(--mono); font-size: 0.6rem; color: var(--faint); }
 .appnav-term-top .provider-badge { font-size: 0.52rem; padding: 0 5px; line-height: 1.4; }
 /* terminal ATIVO: bolinha verde cintilante à esquerda do título */
