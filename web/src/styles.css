@@ -1555,9 +1555,11 @@ tr:last-child td { border-bottom: none; }
   content: ''; position: absolute; left: 0; top: 7px;
   width: 5px; height: 5px; border-radius: 50%; background: var(--sky);
 }
-/* bolinha do evento por origem: verde = você respondeu; âmbar = a IA pergunta/fala. */
+/* bolinha do evento por origem: verde = você respondeu; âmbar = a IA espera você;
+   cinza = a IA respondeu sem esperar nada. */
 .tcard-timeline li[data-kind="you"]::before { background: var(--green); }
 .tcard-timeline li[data-kind="ai"]::before { background: var(--amber); }
+.tcard-timeline li[data-kind="idle"]::before { background: var(--muted); opacity: .55; }
 .tcard-foot {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; border-top: 1px solid var(--line); background: var(--surface-sunk);
@@ -1925,6 +1927,9 @@ tr:last-child td { border-bottom: none; }
 /* A pergunta que a IA espera ganha um leve destaque (é o que você precisa responder). */
 .ixp-section-expects { border-left: 3px solid var(--sky); padding-left: 10px; }
 .ixp-section-expects .ixp-section-body { font-weight: 500; }
+/* "ok" discreto quando a IA não espera nada de você. */
+.ixp-section-ok { margin-bottom: 12px; }
+.ixp-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
 
 /* contexto + última fala + opções no painel */
 .ixp-ctx-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }

@@ -16,6 +16,41 @@ func (s *Server) routesInteraction() {
 	s.mux.HandleFunc("GET /api/sessions/{id}/interaction", s.handleInteraction)
 	s.mux.HandleFunc("POST /api/sessions/{id}/interaction/respond", s.handleInteractionRespond)
 	s.mux.HandleFunc("POST /api/sessions/{id}/interaction/prompt", s.handleInteractionPrompt)
+	// Fila de adiadas: adiar uma sessão (vira bolinha no sidebar) e listar a fila.
+	s.mux.HandleFunc("POST /api/sessions/{id}/defer", s.handleDeferSession)
+	s.mux.HandleFunc("GET /api/deferred", s.handleListDeferred)
+}
+
+// handleDeferSession marca a sessão como adiada: o modal de interação fecha e a
+// sessão vira uma bolinha no sidebar, que reabre o modal ao ser clicada. Não
+// reabre sozinha.
+func (s *Server) handleDeferSession(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.deps.Store.SetSessionDeferred(id); err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	s.deps.Bus.Publish(bus.Event{Type: "session.deferred", Payload: map[string]any{"session_id": id}})
+	w.WriteHeader(204)
+}
+
+// handleListDeferred devolve a fila de adiadas (mais recentes primeiro).
+func (s *Server) handleListDeferred(w http.ResponseWriter, r *http.Request) {
+	list, err := s.deps.Store.ListDeferredSessions()
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, list)
+}
+
+// clearDeferred remove a marca de adiada e avisa o front (a bolinha some).
+// Chamado ao responder/enviar: responder resolve o pedido, então não faz
+// sentido continuar na fila.
+func (s *Server) clearDeferred(id string) {
+	if err := s.deps.Store.ClearSessionDeferred(id); err == nil {
+		s.deps.Bus.Publish(bus.Event{Type: "session.undeferred", Payload: map[string]any{"session_id": id}})
+	}
 }
 
 // handleInteraction devolve o Snapshot AG-UI atual da sessão (estado, última
@@ -69,6 +104,7 @@ func (s *Server) handleInteractionRespond(w http.ResponseWriter, r *http.Request
 			writeErr(w, 409, err.Error())
 			return
 		}
+		s.clearDeferred(id)
 		w.WriteHeader(204)
 		return
 	}
@@ -84,6 +120,7 @@ func (s *Server) handleInteractionRespond(w http.ResponseWriter, r *http.Request
 		writeErr(w, 404, "pedido inexistente ou já resolvido")
 		return
 	}
+	s.clearDeferred(id)
 	s.deps.Bus.Publish(bus.Event{Type: "ask.resolved", Payload: map[string]any{"request_id": in.RequestID}})
 	w.WriteHeader(204)
 }
@@ -106,6 +143,7 @@ func (s *Server) handleInteractionPrompt(w http.ResponseWriter, r *http.Request)
 			writeErr(w, 409, err.Error())
 			return
 		}
+		s.clearDeferred(id)
 		w.WriteHeader(204)
 		return
 	}
@@ -118,6 +156,7 @@ func (s *Server) handleInteractionPrompt(w http.ResponseWriter, r *http.Request)
 		writeErr(w, 500, err.Error())
 		return
 	}
+	s.clearDeferred(id)
 	s.deps.Bus.Publish(bus.Event{Type: "session.busy", Payload: map[string]any{"session_id": id}})
 	w.WriteHeader(204)
 }

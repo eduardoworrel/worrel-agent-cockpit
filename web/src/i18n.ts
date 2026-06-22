@@ -72,6 +72,7 @@ i18next
               myRequest: 'My last request',
               lastActions: 'Latest actions',
               expects: 'What the agent expects from you',
+              nothingExpected: 'Nothing pending — all good',
             },
           },
           terminals: {
@@ -613,6 +614,7 @@ i18next
               myRequest: 'Meu último pedido',
               lastActions: 'Últimas ações',
               expects: 'O que a IA espera de você',
+              nothingExpected: 'Nada pendente — tudo certo',
             },
           },
           terminals: {

@@ -61,8 +61,11 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
 
   // Contexto = eventos narrados (concisos), nunca o output cru / JSONs.
   const context = snapshot.progress ?? [];
+  // A IA só "espera de você" quando há um interrupt pendente ou o harness marca
+  // a sessão como aguardando. Fora disso ela não espera nada — mostramos só "ok".
+  const awaitsYou = !!interrupt || state === 'awaiting';
   // O que a IA espera de você: a pergunta bloqueante pendente OU a última fala da
-  // IA (que costuma terminar numa pergunta). Pode não existir — aí a seção some.
+  // IA (que costuma terminar numa pergunta).
   const expects = interrupt?.prompt ?? snapshot.message;
 
   return (
@@ -93,13 +96,18 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
         </section>
       )}
 
-      {/* O que a IA espera de você: a pergunta final (pode não haver). */}
-      {expects && (
+      {/* A IA espera de você → mostra a pergunta final em markdown.
+          Não espera nada → só um "ok" discreto, sem o título pesado. */}
+      {awaitsYou && expects ? (
         <section className="ixp-section ixp-section-expects">
           <h4 className="ixp-section-title">{t('home.ix.expects')}</h4>
           <div className="ixp-section-body chat-md">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{expects}</ReactMarkdown>
           </div>
+        </section>
+      ) : (
+        <section className="ixp-section ixp-section-ok">
+          <span className="ixp-ok">✓ {t('home.ix.nothingExpected')}</span>
         </section>
       )}
 

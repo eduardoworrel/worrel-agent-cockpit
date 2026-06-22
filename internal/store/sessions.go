@@ -26,6 +26,7 @@ type Session struct {
 	WorkspaceDir     string  `json:"workspace_dir"`
 	SourceDir        string  `json:"source_dir"`
 	EndReason        string  `json:"end_reason"`
+	DeferredAt       *int64  `json:"deferred_at"`
 }
 
 type TranscriptEvent struct {
@@ -73,14 +74,14 @@ func (s *Store) SessionByMCPToken(token string) (*Session, error) {
 
 const sessionCols = `SELECT id, COALESCE(project_id,''), adapter, external_ref, mode, title, status,
 	continues, mcp_token, started_at, ended_at, analyzed_at, context_used, context_limit, summary,
-	transcript_pruned, COALESCE(workspace_dir,''), COALESCE(source_dir,''), COALESCE(end_reason,'')
+	transcript_pruned, COALESCE(workspace_dir,''), COALESCE(source_dir,''), COALESCE(end_reason,''), deferred_at
 	FROM sessions`
 
 func scanSession(r rowScanner) (*Session, error) {
 	x := &Session{}
 	err := r.Scan(&x.ID, &x.ProjectID, &x.Adapter, &x.ExternalRef, &x.Mode, &x.Title, &x.Status,
 		&x.Continues, &x.MCPToken, &x.StartedAt, &x.EndedAt, &x.AnalyzedAt,
-		&x.ContextUsed, &x.ContextLimit, &x.Summary, &x.TranscriptPruned, &x.WorkspaceDir, &x.SourceDir, &x.EndReason)
+		&x.ContextUsed, &x.ContextLimit, &x.Summary, &x.TranscriptPruned, &x.WorkspaceDir, &x.SourceDir, &x.EndReason, &x.DeferredAt)
 	return x, err
 }
 

@@ -102,6 +102,11 @@ func migrateAddColumns(db *sql.DB) error {
 			`ALTER TABLE engine_log ADD COLUMN input TEXT NOT NULL DEFAULT ''`},
 		{"engine_log", "output",
 			`ALTER TABLE engine_log ADD COLUMN output TEXT NOT NULL DEFAULT ''`},
+		// fila de adiadas: quando o usuário clica "Adiar" no modal de interação,
+		// a sessão recebe um timestamp. NULL = não adiada. ORDER BY deferred_at
+		// DESC dá as mais recentes (as bolinhas do sidebar). Limpo ao responder.
+		{"sessions", "deferred_at",
+			`ALTER TABLE sessions ADD COLUMN deferred_at INTEGER`},
 	}
 	for _, w := range wanted {
 		var n int
