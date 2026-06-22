@@ -247,6 +247,41 @@ func (a *Applier) Accept(suggestionID string) error {
 		if err := a.ApplyPipeline(sg); err != nil {
 			return err
 		}
+	case "agent.correction":
+		var p struct {
+			TargetAgentID string `json:"target_agent_id"`
+			Persona       string `json:"persona"`
+			ChangeSummary string `json:"change_summary"`
+			Evidence      string `json:"evidence"`
+		}
+		if err := json.Unmarshal([]byte(sg.Payload), &p); err != nil {
+			return err
+		}
+		if p.TargetAgentID == "" {
+			return fmt.Errorf("agent.correction sem target_agent_id")
+		}
+		if _, err := a.store.GetAgent(p.TargetAgentID); err != nil {
+			return err
+		}
+		if _, err := a.store.AddAgentGeneration(p.TargetAgentID, p.Persona, p.ChangeSummary, p.Evidence); err != nil {
+			return err
+		}
+	case "skill.health":
+		var p struct {
+			SkillID string `json:"skill_id"`
+			Action  string `json:"action"`
+		}
+		if err := json.Unmarshal([]byte(sg.Payload), &p); err != nil {
+			return err
+		}
+		if p.SkillID == "" {
+			return fmt.Errorf("skill.health sem skill_id")
+		}
+		// suspend/degrade: rebaixa a política para "manual" (para de auto-evoluir
+		// uma skill que está falhando). É a ação concreta disponível.
+		if err := a.store.SetSkillPolicy(p.SkillID, "manual"); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("tipo de sugestão desconhecido: %s", sg.Type)
 	}
