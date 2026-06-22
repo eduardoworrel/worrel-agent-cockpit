@@ -26,6 +26,7 @@ import {
   exportSkill,
   importSkill,
   postHandoff,
+  killSession,
 } from '../api';
 import type { Project as ProjectType, MemoryVersion, MemoryEntry, Agent, Skill, Session, Suggestion, DetectedAdapter, SkillStats } from '../api';
 import SecretsTab from '../components/SecretsTab';
@@ -78,6 +79,7 @@ export default function Project() {
   const [sessions, setSessions] = useState<Session[]>([]);
   // Sessão alvo do modal de confirmação de arquivamento (null = fechado).
   const [archiveTarget, setArchiveTarget] = useState<Session | null>(null);
+  const [killTarget, setKillTarget] = useState<Session | null>(null);
   const [adapters, setAdapters] = useState<DetectedAdapter[]>([]);
   const [showNewSession, setShowNewSession] = useState(false);
   // Quando preenchido, o NewSessionModal injeta este conteúdo (skill/pipeline) no primer.
@@ -306,6 +308,16 @@ export default function Project() {
     return run(async () => {
       await archiveSession(sessionId);
       setArchiveTarget(null);
+      if (id) setSessions(await listSessions(id));
+    });
+  }
+
+  // Encerra a sessão em andamento (só após confirmação): mata o processo do
+  // agente; a sessão passa a 'ended' e ganha as ações de histórico na mesma linha.
+  function handleKill(sessionId: string) {
+    return run(async () => {
+      await killSession(sessionId);
+      setKillTarget(null);
       if (id) setSessions(await listSessions(id));
     });
   }
@@ -617,30 +629,44 @@ export default function Project() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                        {s.status === 'active' && (
-                          <Link to={`/sessions/${s.id}`} className="btn btn-secondary" style={{ fontSize: '0.8rem' }}>
-                            {t('sessions.openTerminal')}
-                          </Link>
+                        {s.status === 'active' ? (
+                          <>
+                            <Link to={`/sessions/${s.id}`} className="btn btn-secondary" style={{ fontSize: '0.8rem' }}>
+                              {t('sessions.openTerminal')}
+                            </Link>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.8rem' }}
+                              disabled={busy}
+                              title={t('sessions.endHint', 'Encerra o processo do agente desta sessão') as string}
+                              onClick={() => setKillTarget(s)}
+                            >
+                              ⨯ {t('sessions.end', 'Encerrar')}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.8rem' }}
+                              disabled={busy}
+                              title={t('sessions.resumeHint') as string}
+                              onClick={() => handleResume(s.id)}
+                            >
+                              ↻ {t('sessions.resume')}
+                            </button>
+                            <button
+                              className="btn btn-secondary row-archive"
+                              style={{ fontSize: '0.8rem' }}
+                              disabled={busy}
+                              aria-label={t('sessions.archive') as string}
+                              title={t('sessions.archive') as string}
+                              onClick={() => setArchiveTarget(s)}
+                            >
+                              🗄 {t('sessions.archive')}
+                            </button>
+                          </>
                         )}
-                        <button
-                          className="btn btn-primary"
-                          style={{ fontSize: '0.8rem' }}
-                          disabled={busy}
-                          title={t('sessions.resumeHint') as string}
-                          onClick={() => handleResume(s.id)}
-                        >
-                          ↻ {t('sessions.resume')}
-                        </button>
-                        <button
-                          className="btn btn-secondary row-archive"
-                          style={{ fontSize: '0.8rem' }}
-                          disabled={busy}
-                          aria-label={t('sessions.archive') as string}
-                          title={t('sessions.archive') as string}
-                          onClick={() => setArchiveTarget(s)}
-                        >
-                          🗄 {t('sessions.archive')}
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -679,6 +705,39 @@ export default function Project() {
                 onClick={() => handleArchive(archiveTarget.id)}
               >
                 {t('sessions.archive')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {killTarget && (
+        <div className="modal-overlay" onClick={() => !busy && setKillTarget(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kill-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="kill-confirm-title" style={{ marginTop: 0 }}>{t('sessions.endConfirmTitle', 'Encerrar sessão em andamento?')}</h3>
+            <p>{t('sessions.endConfirmMsg', 'O processo do agente será finalizado. A sessão fica no histórico e pode ser recomeçada depois.')}</p>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                disabled={busy}
+                onClick={() => setKillTarget(null)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                disabled={busy}
+                onClick={() => handleKill(killTarget.id)}
+              >
+                {t('sessions.end', 'Encerrar')}
               </button>
             </div>
           </div>
