@@ -570,3 +570,43 @@ export function sendPrompt(sessionId: string, text: string): Promise<void> {
     body: JSON.stringify({ text }),
   });
 }
+
+// Toggle de custo dos motores de IA da Home (summary/interpret). scope vazio =
+// global; sessionId = override por-miniatura ("session:<id>").
+export async function getEngineEnabled(id: string, sessionId?: string, def?: boolean): Promise<boolean> {
+  const qs = new URLSearchParams();
+  if (sessionId) qs.set('session_id', sessionId);
+  if (def !== undefined) qs.set('default', String(def));
+  const r = await fetch(`/api/engines/${id}/enabled?${qs.toString()}`);
+  const body = await r.json();
+  return !!body.enabled;
+}
+
+export async function setEngineEnabled(id: string, enabled: boolean, sessionId?: string): Promise<void> {
+  await fetch(`/api/engines/${id}/config`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key: '__enabled',
+      value: enabled ? 'true' : 'false',
+      project_id: sessionId ? `session:${sessionId}` : '',
+    }),
+  });
+}
+
+// getEngineSettings devolve o estado resolvido (sessão ⊕ global ⊕ default) de um
+// motor de borda da Home: ligado/desligado, harness e modelo configurados.
+export async function getEngineSettings(id: string, sessionId?: string): Promise<{ enabled: boolean; harness: string; model: string }> {
+  const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+  const r = await fetch(`/api/engines/${id}/settings${qs}`);
+  const b = await r.json();
+  return { enabled: !!b.enabled, harness: b.harness ?? '', model: b.model ?? '' };
+}
+
+// setEngineConfigValue grava um par chave/valor de config do motor no escopo
+// global (sem project_id) — usado para harness/modelo das bordas da Home.
+export async function setEngineConfigValue(id: string, key: string, value: string): Promise<void> {
+  await fetch(`/api/engines/${id}/config`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, value }), // project_id ausente → escopo global
+  });
+}

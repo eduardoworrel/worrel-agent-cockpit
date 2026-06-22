@@ -37,6 +37,42 @@ func (s *Server) routesEngines() {
 		writeJSON(w, http.StatusOK, log)
 	})
 
+	s.mux.HandleFunc("GET /api/engines/{id}/enabled", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		sessionID := r.URL.Query().Get("session_id")
+		// default por motor: summary OFF, interpret ON; query "default" sobrepõe.
+		def := id == "interpret"
+		if d := r.URL.Query().Get("default"); d != "" {
+			def = d == "true"
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{
+			"enabled": s.deps.Store.EngineEnabled(id, sessionID, def),
+		})
+	})
+
+	s.mux.HandleFunc("GET /api/engines/{id}/settings", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		sessionID := r.URL.Query().Get("session_id")
+		get := func(key string) string {
+			if sessionID != "" {
+				if m, err := s.deps.Store.GetEngineConfig(id, "session:"+sessionID); err == nil {
+					if v, ok := m[key]; ok && v != "" {
+						return v
+					}
+				}
+			}
+			if m, err := s.deps.Store.GetEngineConfig(id, ""); err == nil {
+				return m[key]
+			}
+			return ""
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"enabled": s.deps.Store.EngineEnabled(id, sessionID, id == "interpret"),
+			"harness": get("harness"),
+			"model":   get("model"),
+		})
+	})
+
 	s.mux.HandleFunc("PUT /api/engines/{id}/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.deps.Engines == nil {
 			writeErr(w, http.StatusServiceUnavailable, "motores indisponíveis")

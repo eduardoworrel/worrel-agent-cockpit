@@ -96,6 +96,12 @@ func migrateAddColumns(db *sql.DB) error {
 			`ALTER TABLE skills ADD COLUMN structured TEXT NOT NULL DEFAULT ''`},
 		{"agents", "active_generation",
 			`ALTER TABLE agents ADD COLUMN active_generation INTEGER NOT NULL DEFAULT 1`},
+		// auditoria de IA: prompt enviado e resposta crua do modelo, por
+		// execução de motor. Vazio quando não houve chamada de IA (heurística).
+		{"engine_log", "input",
+			`ALTER TABLE engine_log ADD COLUMN input TEXT NOT NULL DEFAULT ''`},
+		{"engine_log", "output",
+			`ALTER TABLE engine_log ADD COLUMN output TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, w := range wanted {
 		var n int

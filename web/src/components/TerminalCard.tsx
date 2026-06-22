@@ -16,6 +16,18 @@ interface Props {
   suggestions: number;
   // Chamado após responder/enviar no painel → Home re-busca os snapshots.
   onActed: () => void;
+  // Toggle de custo do resumo de IA desta miniatura (Plano 3).
+  summaryEnabled: boolean;
+  onToggleSummary: (enabled: boolean) => void;
+}
+
+// frozenTail mostra as últimas linhas do histórico cru (o "final" da sessão),
+// usado quando o resumo de IA está desligado para aquela miniatura.
+function frozenTail(snapshot: InteractionSnapshot | undefined, fallback: string): string[] {
+  const h = snapshot?.history ?? [];
+  if (h.length === 0) return [fallback];
+  const tail = h.slice(-3).map((l) => l.text).filter((s) => s.trim().length > 0);
+  return tail.length > 0 ? tail : [fallback];
 }
 
 // timelineLines escolhe o que mostrar na timeline do card, em ordem de preferência:
@@ -40,12 +52,16 @@ function timelineLines(s: Session, snapshot: InteractionSnapshot | undefined, fa
 
 // TerminalCard é o card da Home: uma sessão "ao vivo" resumida em linhas
 // simples, com o ⚠️ que abre o canal de interação (responder/mandar prompt).
-export default function TerminalCard({ session, snapshot, awaiting, suggestions, onActed }: Props) {
+export default function TerminalCard({ session, snapshot, awaiting, suggestions, onActed, summaryEnabled, onToggleSummary }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const goTerminal = () => navigate(`/sessions/${session.id}`);
-  const lines = timelineLines(session, snapshot, t('home.noProgress'));
+  // Resumo ligado: timeline narrada por IA. Desligado: cauda crua do histórico
+  // (sem rolagem, só o final), custo zero.
+  const lines = summaryEnabled
+    ? timelineLines(session, snapshot, t('home.noProgress'))
+    : frozenTail(snapshot, t('home.summaryOff', 'Resumo por IA desligado'));
 
   // Precisa de atenção: interrupt pendente OU ociosa aguardando o usuário.
   const needsAttention = snapshot
@@ -87,6 +103,15 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
             <b>{suggestions}</b> {t('home.suggestions', { count: suggestions })}
           </span>
         )}
+        <label className="tcard-ai-toggle" title={t('home.summaryToggle', 'Resumo por IA (custa créditos)')}
+          onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={summaryEnabled}
+            onChange={(e) => onToggleSummary(e.target.checked)}
+          />
+          <span>IA</span>
+        </label>
       </div>
 
       {open && snapshot && (

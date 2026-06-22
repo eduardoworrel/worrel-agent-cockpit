@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/agui"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
 
 const interpretTimeout = 25 * time.Second
@@ -69,6 +69,10 @@ func (s *Server) attachInterpretation(snap *agui.Snapshot) {
 		snap.State != agui.StateAwaiting || snap.Message == "" {
 		return
 	}
+	// toggle de custo: interpretação é só-global (default ON).
+	if s.deps.Store != nil && !s.deps.Store.EngineEnabled("interpret", "", true) {
+		return
+	}
 	id := snap.SessionID
 	if r, ok := s.interpret.get(id, snap.Message); ok {
 		snap.Interrupt = interpretationToInterrupt(r, snap.Message)
@@ -82,10 +86,18 @@ func (s *Server) attachInterpretation(snap *agui.Snapshot) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), interpretTimeout)
 		defer cancel()
-		out, err := s.deps.Summarizer.RunHeadless(ctx, prompt, adapter.HeadlessOpts{})
+		llm, opts := s.summarizerFor("interpret", "")
+		out, err := llm.RunHeadless(ctx, prompt, opts)
 		if err != nil {
 			s.interpret.release(id)
 			return
+		}
+		// auditoria inegociável: grava o prompt enviado e a resposta crua da IA.
+		if s.deps.Store != nil {
+			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
+				EngineID: "interpret", SessionID: id, Trigger: "agent_self",
+				Input: prompt, Output: out,
+			})
 		}
 		s.interpret.store(id, msg, agui.ParseInterpretation(out))
 		s.deps.Bus.Publish(bus.Event{Type: "interaction.changed", Payload: map[string]any{"session_id": id}})

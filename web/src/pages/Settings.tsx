@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getSettings, putSettings, listProjects, listSessions } from '../api';
 import EngineCard, { type EngineItem } from '../components/EngineCard';
+import HomeEngineConfig from '../components/HomeEngineConfig';
 import OnboardingWizard from '../components/OnboardingWizard';
 import { getInteractionStyle, setInteractionStyle } from '../interactionStyle';
 import type { InteractionStyle } from '../interactionStyle';
 
-type EngineLogEntry = { id: number; engine_id: string; trigger: string; suggestions: number; detail: string; created_at: number };
+type EngineLogEntry = { id: number; engine_id: string; trigger: string; suggestions: number; detail: string; input?: string; output?: string; created_at: number };
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -168,6 +169,19 @@ export default function Settings() {
             </div>
           </div>
 
+          <div style={{ maxWidth: '760px', marginTop: '1rem' }}>
+            <h2 style={{ marginBottom: '0.2rem' }}>{t('settings.aiCostTitle', 'Inteligência & custo')}</h2>
+            <p style={{ color: 'var(--muted)', marginTop: 0 }}>
+              {t('settings.aiCostHint', 'Recursos de IA da Home. Escolha harness e modelo. Toda execução é auditada.')}
+            </p>
+            <HomeEngineConfig id="summary" defaultOn={false}
+              title={t('settings.aiSummary', 'Resumo de progresso')}
+              description={t('settings.aiSummaryDesc', 'Narração ao vivo das miniaturas. Desligado mostra a cauda crua (sem custo).')} />
+            <HomeEngineConfig id="interpret" defaultOn={true}
+              title={t('settings.aiInterpret', 'Interpretação para resposta')}
+              description={t('settings.aiInterpretDesc', 'Transforma a fala do agente em opções acionáveis.')} />
+          </div>
+
           <div className="card" style={{ maxWidth: '480px', marginTop: '1.5rem', borderColor: 'var(--red)' }}>
             <h2 style={{ marginTop: 0, color: 'var(--red)' }}>Zona de perigo</h2>
             <p style={{ marginTop: 0, color: 'var(--muted)' }}>
@@ -193,7 +207,7 @@ export default function Settings() {
             <button className="btn btn-secondary" onClick={loadActivity}>{t('common.refresh', 'Atualizar')}</button>
           </div>
           <p style={{ marginTop: '0.4rem', color: 'var(--muted)' }}>
-            {t('settings.activityHint', 'Cada execução de motor e as sugestões que gerou (explicabilidade).')}
+            {t('settings.activityHint', 'Cada execução de motor, as sugestões que gerou e o prompt/resposta da IA quando houver (explicabilidade).')}
           </p>
           {activity.length === 0 && <p style={{ color: 'var(--muted)' }}>{t('settings.activityEmpty', 'Nenhuma execução ainda.')}</p>}
           {activity.map(a => (
@@ -206,6 +220,23 @@ export default function Settings() {
                 gatilho: {a.trigger || '—'} · {a.suggestions} sugestão(ões)
               </div>
               {a.detail && <div style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>{a.detail}</div>}
+              {(a.input || a.output) && (
+                <details style={{ marginTop: '0.3rem', fontSize: '0.8rem' }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--muted)' }}>
+                    {t('settings.activityIO', 'Ver prompt e resposta da IA')}
+                  </summary>
+                  {a.input && (
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-elev, #1a1a1a)', padding: '0.5rem', borderRadius: 4, marginTop: '0.3rem' }}>
+                      <strong>input:</strong>{'\n'}{a.input}
+                    </pre>
+                  )}
+                  {a.output && (
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-elev, #1a1a1a)', padding: '0.5rem', borderRadius: 4, marginTop: '0.3rem' }}>
+                      <strong>output:</strong>{'\n'}{a.output}
+                    </pre>
+                  )}
+                </details>
+              )}
             </div>
           ))}
         </div>

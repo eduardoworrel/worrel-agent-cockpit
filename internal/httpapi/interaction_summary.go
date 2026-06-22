@@ -75,12 +75,45 @@ func (c *progressCache) release(id string) {
 	delete(c.inflight, id)
 }
 
+// summarizerFor escolhe o executor headless do motor de borda a partir do
+// harness/modelo configurados em engine_config (sessão ⊕ global). Se o harness
+// resolve para um adapter headless registrado, usa-o; senão cai no Summarizer
+// padrão. opts.Model carrega o modelo configurado (vazio = default do CLI).
+func (s *Server) summarizerFor(engineID, sessionID string) (HeadlessLLM, adapter.HeadlessOpts) {
+	get := func(key string) string {
+		if s.deps.Store == nil {
+			return ""
+		}
+		if sessionID != "" {
+			if m, err := s.deps.Store.GetEngineConfig(engineID, "session:"+sessionID); err == nil {
+				if v, ok := m[key]; ok && v != "" {
+					return v
+				}
+			}
+		}
+		if m, err := s.deps.Store.GetEngineConfig(engineID, ""); err == nil {
+			return m[key]
+		}
+		return ""
+	}
+	opts := adapter.HeadlessOpts{Model: get("model")}
+	if h := get("harness"); h != "" && s.deps.Adapters != nil {
+		if ad, ok := s.deps.Adapters.Get(h); ok && ad.Capabilities().Headless {
+			return ad, opts
+		}
+	}
+	return s.deps.Summarizer, opts
+}
+
 // attachEngineSummary gera (via LLM, assíncrono e cacheado) o TÍTULO vivo + os
 // EVENTOS NARRADOS de uma sessão do MOTOR a partir do histórico. Os eventos
 // narrados ("o agente fez X", "está fazendo Y") substituem as mensagens cruas
 // no card (é o que a Home deve mostrar). O título vira o nome da sessão.
 func (s *Server) attachEngineSummary(snap *agui.Snapshot) {
 	if s.deps.Summarizer == nil {
+		return
+	}
+	if s.deps.Store != nil && !s.deps.Store.EngineEnabled("summary", snap.SessionID, false) {
 		return
 	}
 	id := snap.SessionID
@@ -96,10 +129,18 @@ func (s *Server) attachEngineSummary(snap *agui.Snapshot) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), progressTimeout)
 		defer cancel()
-		out, err := s.deps.Summarizer.RunHeadless(ctx, prompt, adapter.HeadlessOpts{})
+		llm, opts := s.summarizerFor("summary", id)
+		out, err := llm.RunHeadless(ctx, prompt, opts)
 		if err != nil {
 			s.titles.release(id)
 			return
+		}
+		// auditoria inegociável: grava o prompt enviado e a resposta crua da IA.
+		if s.deps.Store != nil {
+			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
+				EngineID: "summary", SessionID: id, Trigger: "realtime",
+				Input: prompt, Output: out,
+			})
 		}
 		title, lines := agui.ParseProgress(out)
 		s.titles.store(id, lines, atLen)
@@ -131,6 +172,10 @@ func (s *Server) attachProgress(snap *agui.Snapshot, events []*store.TranscriptE
 	if s.deps.Summarizer == nil || snap.State == agui.StateEnded {
 		return
 	}
+	// toggle de custo: resumo desligado (global ou por-sessão) → não chama IA.
+	if s.deps.Store != nil && !s.deps.Store.EngineEnabled("summary", snap.SessionID, false) {
+		return
+	}
 	if !s.progress.claim(snap.SessionID, len(events)) {
 		return
 	}
@@ -140,10 +185,18 @@ func (s *Server) attachProgress(snap *agui.Snapshot, events []*store.TranscriptE
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), progressTimeout)
 		defer cancel()
-		out, err := s.deps.Summarizer.RunHeadless(ctx, prompt, adapter.HeadlessOpts{})
+		llm, opts := s.summarizerFor("summary", id)
+		out, err := llm.RunHeadless(ctx, prompt, opts)
 		if err != nil {
 			s.progress.release(id)
 			return
+		}
+		// auditoria inegociável: grava o prompt enviado e a resposta crua da IA.
+		if s.deps.Store != nil {
+			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
+				EngineID: "summary", SessionID: id, Trigger: "realtime",
+				Input: prompt, Output: out,
+			})
 		}
 		title, parsed := agui.ParseProgress(out)
 		if len(parsed) == 0 && title == "" {

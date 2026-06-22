@@ -45,7 +45,7 @@ interface ExtractState {
 function AppInner() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { loading, projects, wrapperSessions, liveIds, isEmpty, reload } = useAppState();
+  const { initialLoading, projects, wrapperSessions, liveIds, isEmpty, reload } = useAppState();
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -82,9 +82,16 @@ function AppInner() {
       const sid = p.session_id ?? p.id;
       if (sid) {
         setAwaitingIds((prev) => {
+          const has = prev.has(sid);
+          if (ev.type === 'session.awaiting') {
+            if (has) return prev; // já marcado: não recria o Set
+            const next = new Set(prev);
+            next.add(sid);
+            return next;
+          }
+          if (!has) return prev; // já ausente: não recria o Set
           const next = new Set(prev);
-          if (ev.type === 'session.awaiting') next.add(sid);
-          else next.delete(sid);
+          next.delete(sid);
           return next;
         });
       }
@@ -181,7 +188,7 @@ function AppInner() {
 
   const liveSessions = wrapperSessions.filter((s) => liveIds.has(s.id));
 
-  if (loading) return <div className="app-layout" />;
+  if (initialLoading) return <div className="app-layout" />;
 
   if (isEmpty) {
     return (

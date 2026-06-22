@@ -62,3 +62,53 @@ func TestEnginesListAndRun(t *testing.T) {
 
 	_ = http.StatusOK
 }
+
+func TestEnginesEnabledEndpoint(t *testing.T) {
+	st, _ := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	defer st.Close()
+	_ = st.SetEngineConfig("summary", "__enabled", "true", "session:s1")
+
+	srv := &Server{deps: Deps{Store: st}, mux: http.NewServeMux()}
+	srv.routesEngines()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/engines/summary/enabled?session_id=s1&default=false", nil)
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if !body.Enabled {
+		t.Fatalf("esperava enabled=true para a sessão s1")
+	}
+}
+
+func TestEnginesSettingsEndpoint(t *testing.T) {
+	st, _ := store.Open(t.TempDir() + "/t.db")
+	defer st.Close()
+	_ = st.SetEngineConfig("summary", "__enabled", "true", "")
+	_ = st.SetEngineConfig("summary", "harness", "opencode", "")
+	_ = st.SetEngineConfig("summary", "model", "anthropic/claude-sonnet-4-6", "")
+
+	srv := &Server{deps: Deps{Store: st}, mux: http.NewServeMux()}
+	srv.routesEngines()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/engines/summary/settings", nil)
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	var body struct {
+		Enabled bool   `json:"enabled"`
+		Harness string `json:"harness"`
+		Model   string `json:"model"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if !body.Enabled || body.Harness != "opencode" || body.Model == "" {
+		t.Fatalf("settings resolvido errado: %+v", body)
+	}
+}
