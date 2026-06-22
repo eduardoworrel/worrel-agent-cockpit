@@ -570,3 +570,25 @@ export function sendPrompt(sessionId: string, text: string): Promise<void> {
     body: JSON.stringify({ text }),
   });
 }
+
+// Toggle de custo dos motores de IA da Home (summary/interpret). scope vazio =
+// global; sessionId = override por-miniatura ("session:<id>").
+export async function getEngineEnabled(id: string, sessionId?: string, def?: boolean): Promise<boolean> {
+  const qs = new URLSearchParams();
+  if (sessionId) qs.set('session_id', sessionId);
+  if (def !== undefined) qs.set('default', String(def));
+  const r = await fetch(`/api/engines/${id}/enabled?${qs.toString()}`);
+  const body = await r.json();
+  return !!body.enabled;
+}
+
+export async function setEngineEnabled(id: string, enabled: boolean, sessionId?: string): Promise<void> {
+  await fetch(`/api/engines/${id}/config`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key: '__enabled',
+      value: enabled ? 'true' : 'false',
+      project_id: sessionId ? `session:${sessionId}` : '',
+    }),
+  });
+}
