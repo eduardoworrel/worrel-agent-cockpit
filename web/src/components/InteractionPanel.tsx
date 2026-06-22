@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { respondInteraction, sendPrompt } from '../api';
 import type { InteractionSnapshot } from '../api';
 import { useDraft } from '../useDraft';
@@ -95,7 +97,9 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
       {expects && (
         <section className="ixp-section ixp-section-expects">
           <h4 className="ixp-section-title">{t('home.ix.expects')}</h4>
-          <p className="ixp-section-body">{expects}</p>
+          <div className="ixp-section-body chat-md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{expects}</ReactMarkdown>
+          </div>
         </section>
       )}
 

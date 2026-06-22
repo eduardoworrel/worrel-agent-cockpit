@@ -21,33 +21,48 @@ interface Props {
   onToggleSummary: (enabled: boolean) => void;
 }
 
+// kind do evento da timeline → cor da bolinha:
+// 'you' (verde) = o usuário respondeu; 'ai' (âmbar) = a IA pergunta/fala;
+// 'neutral' (azul) = narração de progresso, summary ou placeholder.
+type EventKind = 'you' | 'ai' | 'neutral';
+interface TimelineEvent { kind: EventKind; text: string; }
+
 // frozenTail mostra as últimas linhas do histórico cru (o "final" da sessão),
 // usado quando o resumo de IA está desligado para aquela miniatura.
-function frozenTail(snapshot: InteractionSnapshot | undefined, fallback: string): string[] {
+function frozenTail(snapshot: InteractionSnapshot | undefined, fallback: string): TimelineEvent[] {
   const h = snapshot?.history ?? [];
-  if (h.length === 0) return [fallback];
-  const tail = h.slice(-3).map((l) => l.text).filter((s) => s.trim().length > 0);
-  return tail.length > 0 ? tail : [fallback];
+  if (h.length === 0) return [{ kind: 'neutral', text: fallback }];
+  const tail = h
+    .filter((l) => l.text.trim().length > 0)
+    .slice(-3)
+    .map((l): TimelineEvent => ({
+      kind: l.role === 'you' ? 'you' : l.role === 'ai' ? 'ai' : 'neutral',
+      text: l.text,
+    }));
+  return tail.length > 0 ? tail : [{ kind: 'neutral', text: fallback }];
 }
 
 // timelineLines escolhe o que mostrar na timeline do card, em ordem de preferência:
 // 1) o resumo narrado por IA (snapshot.progress); 2) último pedido + última fala
 // da IA; 3) summary persistido; 4) placeholder.
-function timelineLines(s: Session, snapshot: InteractionSnapshot | undefined, fallback: string): string[] {
-  if (snapshot?.progress && snapshot.progress.length > 0) return snapshot.progress.slice(0, 3);
+function timelineLines(s: Session, snapshot: InteractionSnapshot | undefined, fallback: string): TimelineEvent[] {
+  if (snapshot?.progress && snapshot.progress.length > 0)
+    return snapshot.progress.slice(0, 3).map((text): TimelineEvent => ({ kind: 'neutral', text }));
   // Sessão do motor: o card mostra SÓ os eventos narrados; enquanto não chegam,
   // fica o placeholder — nunca as mensagens cruas trocadas.
-  if (s.adapter === 'engine') return [fallback];
-  const lines: string[] = [];
-  if (snapshot?.user_message) lines.push(snapshot.user_message);
-  if (snapshot?.message) lines.push(snapshot.message);
+  if (s.adapter === 'engine') return [{ kind: 'neutral', text: fallback }];
+  const lines: TimelineEvent[] = [];
+  if (snapshot?.user_message) lines.push({ kind: 'you', text: snapshot.user_message });
+  if (snapshot?.message) lines.push({ kind: 'ai', text: snapshot.message });
   if (lines.length > 0) return lines.slice(0, 3);
   // sem snapshot ainda: cai no summary persistido, senão placeholder.
   const fromSummary = (s.summary ?? '')
     .split('\n')
     .map((l) => l.replace(/^#+\s*/, '').replace(/^[-*]\s*/, '').replace(/[*_`]/g, '').trim())
     .filter((l) => l.length >= 4);
-  return fromSummary.length > 0 ? fromSummary.slice(0, 3) : [fallback];
+  return fromSummary.length > 0
+    ? fromSummary.slice(0, 3).map((text): TimelineEvent => ({ kind: 'neutral', text }))
+    : [{ kind: 'neutral', text: fallback }];
 }
 
 // TerminalCard é o card da Home: uma sessão "ao vivo" resumida em linhas
@@ -100,7 +115,7 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
       <div className="tcard-body">
         <ol className="tcard-timeline">
           {lines.map((line, i) => (
-            <li key={i}>{line}</li>
+            <li key={i} data-kind={line.kind}>{line.text}</li>
           ))}
         </ol>
       </div>

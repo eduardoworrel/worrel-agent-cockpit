@@ -1555,6 +1555,9 @@ tr:last-child td { border-bottom: none; }
   content: ''; position: absolute; left: 0; top: 7px;
   width: 5px; height: 5px; border-radius: 50%; background: var(--sky);
 }
+/* bolinha do evento por origem: verde = você respondeu; âmbar = a IA pergunta/fala. */
+.tcard-timeline li[data-kind="you"]::before { background: var(--green); }
+.tcard-timeline li[data-kind="ai"]::before { background: var(--amber); }
 .tcard-foot {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; border-top: 1px solid var(--line); background: var(--surface-sunk);
