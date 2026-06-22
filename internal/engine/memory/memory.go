@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	eng "github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
@@ -13,10 +14,25 @@ const defaultPrompt = `Você analisa trechos de ATRITO de uma sessão de agente 
 
 // Engine é o Motor de Memória.
 type Engine struct {
-	h Headless
+	h   Headless
+	reg *adapter.Registry // opcional: permite escolher o harness por config
 }
 
 func New(h Headless) *Engine { return &Engine{h: h} }
+
+// WithRegistry habilita a escolha de harness (adapter) via config["harness"].
+func (e *Engine) WithRegistry(r *adapter.Registry) *Engine { e.reg = r; return e }
+
+// llm resolve o executor (harness) e o modelo a partir da config.
+func (e *Engine) llm(cfg map[string]string) (Headless, string) {
+	h := e.h
+	if e.reg != nil && cfg["harness"] != "" {
+		if ad, ok := e.reg.Get(cfg["harness"]); ok && ad.Capabilities().Headless {
+			h = ad
+		}
+	}
+	return h, cfg["model"]
+}
 
 func (e *Engine) Spec() eng.Spec {
 	return eng.Spec{
@@ -25,13 +41,13 @@ func (e *Engine) Spec() eng.Spec {
 		Description: "Destila golden truths anti-erro do transcript (padrão erro→correção) como entradas de memória.",
 		Triggers:    []eng.Trigger{eng.TriggerProjectOpenClose, eng.TriggerRealtime, eng.TriggerAgentSelf, eng.TriggerOnDemand},
 		Prompts:     []eng.ConfigField{{Key: "prompt", Label: "Prompt do destilador", Type: "textarea", Default: defaultPrompt}},
-		Config: []eng.ConfigField{
+		Config: append([]eng.ConfigField{
 			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: eng.DetectionModeOptions},
 			{Key: "delivery", Label: "Entrega", Type: "select", Default: "always_inject", Options: []eng.ConfigOption{
 				{Value: "always_inject", Label: "Sempre injetar", Description: "A memória é injetada automaticamente no início de cada sessão (vira o primer)."},
 				{Value: "on_demand", Label: "Sob demanda", Description: "Não injeta; o agente busca a memória via MCP (get_memory) quando precisar."},
 			}},
-		},
+		}, eng.LLMFields()...),
 		OutputType: "suggestion",
 		DefaultOn:  false,
 	}
@@ -61,7 +77,8 @@ func (e *Engine) Run(ctx context.Context, rc eng.RunContext) error {
 	case "llm_full":
 		// uma "janela" única com todos os eventos
 		win := []FrictionWindow{{Signal: "full_transcript", Events: events}}
-		truths, err = NewLLMDistiller(e.h, prompt).Distill(ctx, win, current)
+		hl, model := e.llm(rc.Config)
+		truths, err = NewLLMDistiller(hl, prompt, model).Distill(ctx, win, current)
 		if err != nil {
 			return err
 		}
@@ -70,7 +87,8 @@ func (e *Engine) Run(ctx context.Context, rc eng.RunContext) error {
 		if len(windows) == 0 {
 			return nil
 		}
-		truths, err = NewLLMDistiller(e.h, prompt).Distill(ctx, windows, current)
+		hl, model := e.llm(rc.Config)
+		truths, err = NewLLMDistiller(hl, prompt, model).Distill(ctx, windows, current)
 		if err != nil {
 			return err
 		}

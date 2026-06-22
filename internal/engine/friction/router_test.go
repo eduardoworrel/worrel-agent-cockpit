@@ -25,7 +25,7 @@ func TestParseDecisions(t *testing.T) {
 
 func TestRouteBuildsPromptAndParses(t *testing.T) {
 	fh := &fakeHeadless{out: `[{"destino":"refine_skill","skill":{"skill_id":"s1","content":"novo","change_summary":"fix"}}]`}
-	r := NewRouter(fh)
+	r := NewRouter(fh, "")
 	ds, err := r.Route(context.Background(), []Signal{{Kind: "error_then_success", Text: "make falhou; go build ok"}}, "CTX")
 	if err != nil || len(ds) != 1 || ds[0].Destino != "refine_skill" {
 		t.Fatalf("route: %v %+v", err, ds)

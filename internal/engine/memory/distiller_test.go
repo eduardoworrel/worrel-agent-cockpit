@@ -28,7 +28,7 @@ func TestParseGoldenTruths(t *testing.T) {
 
 func TestDistillCallsHeadlessAndParses(t *testing.T) {
 	fh := &fakeHeadless{out: `[{"content":"build é go build ./...","category":"convencao","evidence":"s1"}]`}
-	d := NewLLMDistiller(fh, "PROMPT_BASE")
+	d := NewLLMDistiller(fh, "PROMPT_BASE", "")
 	windows := []FrictionWindow{{Signal: "error_then_success", Events: []*store.TranscriptEvent{
 		ev(1, "assistant", "tool_use", "Bash make build", ""),
 	}}}

@@ -25,10 +25,11 @@ type GoldenTruth struct {
 type LLMDistiller struct {
 	h      Headless
 	prompt string
+	model  string
 }
 
-func NewLLMDistiller(h Headless, prompt string) *LLMDistiller {
-	return &LLMDistiller{h: h, prompt: prompt}
+func NewLLMDistiller(h Headless, prompt, model string) *LLMDistiller {
+	return &LLMDistiller{h: h, prompt: prompt, model: model}
 }
 
 // Distill monta o prompt (base + entradas atuais + janelas) e parseia a saída.
@@ -46,7 +47,7 @@ func (d *LLMDistiller) Distill(ctx context.Context, windows []FrictionWindow, cu
 			b.WriteString(ev.Role + "/" + ev.Kind + ": " + ev.Content + "\n")
 		}
 	}
-	raw, err := d.h.RunHeadless(ctx, b.String(), adapter.HeadlessOpts{})
+	raw, err := d.h.RunHeadless(ctx, b.String(), adapter.HeadlessOpts{Model: d.model})
 	if err != nil {
 		return nil, err
 	}

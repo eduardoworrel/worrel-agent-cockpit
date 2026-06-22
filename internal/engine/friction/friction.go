@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	eng "github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/memory"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/skill"
@@ -22,9 +23,25 @@ func hashStr(s string) string {
 
 const defaultPrompt = `Roteie cada sinal de atrito para o destino certo (memory/new/refine_skill/refine_agent/health), preenchendo só o sub-objeto do destino. Use IDs existentes do contexto.`
 
-type Engine struct{ h Headless }
+type Engine struct {
+	h   Headless
+	reg *adapter.Registry
+}
 
 func New(h Headless) *Engine { return &Engine{h: h} }
+
+// WithRegistry habilita a escolha de harness (adapter) via config["harness"].
+func (e *Engine) WithRegistry(r *adapter.Registry) *Engine { e.reg = r; return e }
+
+func (e *Engine) llm(cfg map[string]string) (Headless, string) {
+	h := e.h
+	if e.reg != nil && cfg["harness"] != "" {
+		if ad, ok := e.reg.Get(cfg["harness"]); ok && ad.Capabilities().Headless {
+			h = ad
+		}
+	}
+	return h, cfg["model"]
+}
 
 func (e *Engine) Spec() eng.Spec {
 	return eng.Spec{
@@ -34,10 +51,10 @@ func (e *Engine) Spec() eng.Spec {
 		Triggers:    []eng.Trigger{eng.TriggerProjectOpenClose, eng.TriggerRealtime, eng.TriggerOnDemand},
 		// Sem prompt editável: o prompt do roteador é interno (não exposto na UI).
 		Prompts: nil,
-		Config: []eng.ConfigField{
+		Config: append([]eng.ConfigField{
 			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: eng.DetectionModeOptions},
 			{Key: "health_consec_failures", Label: "Falhas consecutivas p/ saúde", Type: "number", Default: "2"},
-		},
+		}, eng.LLMFields()...),
 		OutputType: "suggestion",
 		DefaultOn:  false,
 	}
@@ -79,7 +96,8 @@ func (e *Engine) Run(ctx context.Context, rc eng.RunContext) error {
 	if mode == "heuristic_only" {
 		decisions = heuristicRoute(signals, healthOf)
 	} else {
-		decisions, err = NewRouter(e.h).Route(ctx, signals, buildContext(rc))
+		hl, model := e.llm(rc.Config)
+		decisions, err = NewRouter(hl, model).Route(ctx, signals, buildContext(rc))
 		if err != nil {
 			return err
 		}

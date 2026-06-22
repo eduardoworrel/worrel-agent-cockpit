@@ -161,9 +161,9 @@ func main() {
 	applier := apply.New(st, mir, b)
 
 	engines := engine.NewRegistry()
-	engines.Register(memory.New(cc))
-	engines.Register(skill.New(cc))
-	engines.Register(friction.New(cc))
+	engines.Register(memory.New(cc).WithRegistry(reg))
+	engines.Register(skill.New(cc).WithRegistry(reg))
+	engines.Register(friction.New(cc).WithRegistry(reg))
 
 	// Scheduler: dispara motores HABILITADOS sobre sessões encerradas (uma vez
 	// cada). Nada roda por default — só motores com __enabled=true na config.

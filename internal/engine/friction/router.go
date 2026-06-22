@@ -51,9 +51,12 @@ type Decision struct {
 	Evidence string       `json:"evidence"`
 }
 
-type Router struct{ h Headless }
+type Router struct {
+	h     Headless
+	model string
+}
 
-func NewRouter(h Headless) *Router { return &Router{h: h} }
+func NewRouter(h Headless, model string) *Router { return &Router{h: h, model: model} }
 
 func (r *Router) Route(ctx context.Context, signals []Signal, contextStr string) ([]Decision, error) {
 	var b strings.Builder
@@ -65,7 +68,7 @@ func (r *Router) Route(ctx context.Context, signals []Signal, contextStr string)
 		b.WriteString("### " + s.Kind + "\n" + s.Text + "\n")
 	}
 	b.WriteString("\nDevolva APENAS um array JSON de objetos Decision {destino, memory{content,category}, skill{skill_id,title,content,change_summary,signature}, agent{target_agent_id,persona,change_summary}, health{skill_id,action}, evidence}. Só preencha o sub-objeto do destino escolhido.")
-	raw, err := r.h.RunHeadless(ctx, b.String(), adapter.HeadlessOpts{})
+	raw, err := r.h.RunHeadless(ctx, b.String(), adapter.HeadlessOpts{Model: r.model})
 	if err != nil {
 		return nil, err
 	}

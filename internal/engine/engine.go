@@ -45,6 +45,25 @@ var DetectionModeOptions = []ConfigOption{
 	{Value: "heuristic_only", Label: "Só heurística", Description: "Apenas regras determinísticas, sem LLM. Grátis e rápido, mas mais grosseiro (mais falso-positivo)."},
 }
 
+// HarnessOptions: adapters selecionáveis como executor do LLM (modos com LLM).
+// Apenas os headless-capazes destilam de fato; os demais caem no default.
+var HarnessOptions = []ConfigOption{
+	{Value: "", Label: "Padrão", Description: "Usa o harness padrão do worrel."},
+	{Value: "claude-code", Label: "Claude Code", Description: "Executa a destilação via Claude Code (headless)."},
+	{Value: "opencode", Label: "opencode", Description: "Executa via opencode (headless)."},
+	{Value: "gemini", Label: "Gemini", Description: "Executa via Gemini CLI (se suportar headless)."},
+	{Value: "codex", Label: "Codex", Description: "Executa via Codex CLI (se suportar headless)."},
+}
+
+// LLMFields são os campos de harness + modelo, comuns aos motores que usam LLM
+// (relevantes só fora do modo heuristic_only).
+func LLMFields() []ConfigField {
+	return []ConfigField{
+		{Key: "harness", Label: "Harness (executor do LLM)", Type: "select", Default: "", Options: HarnessOptions},
+		{Key: "model", Label: "Modelo (vazio = default do harness)", Type: "text", Default: ""},
+	}
+}
+
 // Spec é a declaração de um motor. A UI (config/onboarding) é derivada disto.
 type Spec struct {
 	ID          string        `json:"id"`

@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	eng "github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
@@ -22,9 +23,25 @@ func hashStr(s string) string {
 const defaultSkillPrompt = `Redija como WORKFLOW: passos numerados que o usuário dirigiu, inputs declarados, edge cases, critério de conclusão. content = markdown legível; structured = JSON {inputs,steps,edge_cases,completion,own_memory}. own_memory = gotchas/notas do fluxo.`
 const defaultAgentPrompt = `Redija como PERSONA/PAPEL: quem o agente é, expertise, postura e regras de comportamento — NÃO uma tarefa a executar. persona = texto do system prompt.`
 
-type Engine struct{ h Headless }
+type Engine struct {
+	h   Headless
+	reg *adapter.Registry
+}
 
 func New(h Headless) *Engine { return &Engine{h: h} }
+
+// WithRegistry habilita a escolha de harness (adapter) via config["harness"].
+func (e *Engine) WithRegistry(r *adapter.Registry) *Engine { e.reg = r; return e }
+
+func (e *Engine) llm(cfg map[string]string) (Headless, string) {
+	h := e.h
+	if e.reg != nil && cfg["harness"] != "" {
+		if ad, ok := e.reg.Get(cfg["harness"]); ok && ad.Capabilities().Headless {
+			h = ad
+		}
+	}
+	return h, cfg["model"]
+}
 
 func (e *Engine) Spec() eng.Spec {
 	return eng.Spec{
@@ -36,10 +53,10 @@ func (e *Engine) Spec() eng.Spec {
 			{Key: "skill_prompt", Label: "Prompt do rascunho de Skill", Type: "textarea", Default: defaultSkillPrompt},
 			{Key: "agent_prompt", Label: "Prompt do rascunho de Agente", Type: "textarea", Default: defaultAgentPrompt},
 		},
-		Config: []eng.ConfigField{
+		Config: append([]eng.ConfigField{
 			{Key: "detection_mode", Label: "Modo de detecção", Type: "select", Default: "hybrid", Options: eng.DetectionModeOptions},
 			{Key: "maturation_threshold", Label: "Sessões p/ maturar", Type: "number", Default: "2"},
-		},
+		}, eng.LLMFields()...),
 		OutputType: "suggestion",
 		DefaultOn:  false,
 	}
@@ -82,12 +99,14 @@ func (e *Engine) Run(ctx context.Context, rc eng.RunContext) error {
 		}
 	case "llm_full":
 		win := []WorkflowWindow{{Signal: "full_transcript", Events: events}}
-		drafts, err = NewDistiller(e.h).Distill(ctx, win, candidates, skillPrompt, agentPrompt)
+		hl, model := e.llm(rc.Config)
+		drafts, err = NewDistiller(hl, model).Distill(ctx, win, candidates, skillPrompt, agentPrompt)
 		if err != nil {
 			return err
 		}
 	default: // hybrid
-		drafts, err = NewDistiller(e.h).Distill(ctx, windows, candidates, skillPrompt, agentPrompt)
+		hl, model := e.llm(rc.Config)
+		drafts, err = NewDistiller(hl, model).Distill(ctx, windows, candidates, skillPrompt, agentPrompt)
 		if err != nil {
 			return err
 		}

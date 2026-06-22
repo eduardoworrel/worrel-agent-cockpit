@@ -34,9 +34,12 @@ type Draft struct {
 	AgenteDraft AgenteDraft `json:"agente_draft"`
 }
 
-type Distiller struct{ h Headless }
+type Distiller struct {
+	h     Headless
+	model string
+}
 
-func NewDistiller(h Headless) *Distiller { return &Distiller{h: h} }
+func NewDistiller(h Headless, model string) *Distiller { return &Distiller{h: h, model: model} }
 
 func (d *Distiller) Distill(ctx context.Context, windows []WorkflowWindow, candidates []*store.SkillCandidate, skillPrompt, agentPrompt string) ([]Draft, error) {
 	var b strings.Builder
@@ -52,7 +55,7 @@ func (d *Distiller) Distill(ctx context.Context, windows []WorkflowWindow, candi
 		b.WriteString("### sinal: " + w.Signal + "\n" + joinContents(w) + "\n")
 	}
 	b.WriteString("\nDevolva APENAS um array JSON de objetos {signature,title,skill_draft:{name,content,structured},agente_draft:{name,persona}}. structured é um JSON-string com {inputs,steps,edge_cases,completion,own_memory}.")
-	raw, err := d.h.RunHeadless(ctx, b.String(), adapter.HeadlessOpts{})
+	raw, err := d.h.RunHeadless(ctx, b.String(), adapter.HeadlessOpts{Model: d.model})
 	if err != nil {
 		return nil, err
 	}

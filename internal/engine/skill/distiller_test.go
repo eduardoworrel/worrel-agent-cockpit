@@ -26,7 +26,7 @@ func TestParseDrafts(t *testing.T) {
 
 func TestDistillBuildsPromptAndParses(t *testing.T) {
 	fh := &fakeHeadless{out: `[{"signature":"s1","title":"T","skill_draft":{"name":"T","content":"c","structured":"{}"},"agente_draft":{"name":"A","persona":"p"}}]`}
-	d := NewDistiller(fh)
+	d := NewDistiller(fh, "")
 	w := []WorkflowWindow{{Signal: "user_steps", Events: []*store.TranscriptEvent{ev(1, "user", "text", "primeiro X depois Y", "")}}}
 	ds, err := d.Distill(context.Background(), w, nil, "SKILL_PROMPT", "AGENT_PROMPT")
 	if err != nil || len(ds) != 1 {
