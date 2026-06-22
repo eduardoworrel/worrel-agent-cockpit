@@ -70,6 +70,10 @@ func (s *Server) attachInterpretation(snap *agui.Snapshot) {
 		snap.State != agui.StateAwaiting || snap.Message == "" {
 		return
 	}
+	// toggle de custo: interpretação é só-global (default ON).
+	if s.deps.Store != nil && !s.deps.Store.EngineEnabled("interpret", "", true) {
+		return
+	}
 	id := snap.SessionID
 	if r, ok := s.interpret.get(id, snap.Message); ok {
 		snap.Interrupt = interpretationToInterrupt(r, snap.Message)
