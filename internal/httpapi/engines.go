@@ -37,6 +37,19 @@ func (s *Server) routesEngines() {
 		writeJSON(w, http.StatusOK, log)
 	})
 
+	s.mux.HandleFunc("GET /api/engines/{id}/enabled", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		sessionID := r.URL.Query().Get("session_id")
+		// default por motor: summary OFF, interpret ON; query "default" sobrepõe.
+		def := id == "interpret"
+		if d := r.URL.Query().Get("default"); d != "" {
+			def = d == "true"
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{
+			"enabled": s.deps.Store.EngineEnabled(id, sessionID, def),
+		})
+	})
+
 	s.mux.HandleFunc("PUT /api/engines/{id}/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.deps.Engines == nil {
 			writeErr(w, http.StatusServiceUnavailable, "motores indisponíveis")
