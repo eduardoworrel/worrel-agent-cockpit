@@ -79,6 +79,44 @@ func TestAttachProgress_SkipsWhenEnded(t *testing.T) {
 	}
 }
 
+func TestAttachProgress_LogsAudit(t *testing.T) {
+	st, err := store.Open(t.TempDir() + "/t.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer st.Close()
+	srv := &Server{deps: Deps{
+		Bus:        bus.New(),
+		Store:      st,
+		Summarizer: &fakeHeadless{out: `{"title":"Foo","lines":["fez X"]}`},
+	}, progress: newProgressCache()}
+
+	snap := &agui.Snapshot{SessionID: "s1", State: agui.StateAwaiting}
+	events := []*store.TranscriptEvent{
+		{Role: "user", Kind: "text", Content: "oi"},
+		{Role: "assistant", Kind: "text", Content: "fazendo X"},
+		{Role: "assistant", Kind: "text", Content: "fazendo Y"},
+	}
+	srv.attachProgress(snap, events)
+
+	// a geração é assíncrona; espera curta determinística por polling do log.
+	var got []*store.EngineLogEntry
+	for i := 0; i < 100; i++ {
+		got, _ = st.ListEngineLog(10)
+		if len(got) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(got) != 1 {
+		t.Fatalf("esperava 1 linha de auditoria, veio %d", len(got))
+	}
+	if got[0].EngineID != "summary" || got[0].SessionID != "s1" ||
+		got[0].Input == "" || got[0].Output == "" {
+		t.Fatalf("auditoria incompleta: %+v", got[0])
+	}
+}
+
 func TestAttachProgress_NoSummarizerNoop(t *testing.T) {
 	s := newProgressServer(nil)
 	snap := agui.Snapshot{SessionID: "s1", State: agui.StateAwaiting}

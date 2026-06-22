@@ -101,6 +101,13 @@ func (s *Server) attachEngineSummary(snap *agui.Snapshot) {
 			s.titles.release(id)
 			return
 		}
+		// auditoria inegociável: grava o prompt enviado e a resposta crua da IA.
+		if s.deps.Store != nil {
+			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
+				EngineID: "summary", SessionID: id, Trigger: "realtime",
+				Input: prompt, Output: out,
+			})
+		}
 		title, lines := agui.ParseProgress(out)
 		s.titles.store(id, lines, atLen)
 		if title != "" {
@@ -144,6 +151,13 @@ func (s *Server) attachProgress(snap *agui.Snapshot, events []*store.TranscriptE
 		if err != nil {
 			s.progress.release(id)
 			return
+		}
+		// auditoria inegociável: grava o prompt enviado e a resposta crua da IA.
+		if s.deps.Store != nil {
+			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
+				EngineID: "summary", SessionID: id, Trigger: "realtime",
+				Input: prompt, Output: out,
+			})
 		}
 		title, parsed := agui.ParseProgress(out)
 		if len(parsed) == 0 && title == "" {
