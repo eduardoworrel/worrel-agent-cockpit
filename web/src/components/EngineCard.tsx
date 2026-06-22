@@ -1,3 +1,5 @@
+import ExecutionMode from './ExecutionMode'
+
 export type ConfigOption = { value: string; label: string; description: string }
 export type ConfigField = { key: string; label: string; type: string; default: string; options?: ConfigOption[] }
 export type Spec = {
@@ -6,26 +8,6 @@ export type Spec = {
   output_type: string; default_on: boolean
 }
 export type EngineItem = { spec: Spec; config: Record<string, string> }
-
-// Descrição de cada gatilho (modo de execução). Universal aos motores.
-const TRIGGER_INFO: Record<string, { label: string; description: string }> = {
-  project_open_close: {
-    label: 'Automático',
-    description: 'Analisa cada sessão assim que ela encerra. Ao abrir o app, processa sessões que fecharam sem análise (recuperação). Varre em segundo plano a cada ~2 min.',
-  },
-  periodic: {
-    label: 'Periódico',
-    description: 'Varre em segundo plano de tempos em tempos, processando as sessões encerradas ainda não analisadas.',
-  },
-  realtime: {
-    label: 'Ao vivo (em breve)',
-    description: 'Analisaria durante a sessão, em tempo real. Ainda não disponível.',
-  },
-  on_demand: {
-    label: 'Sob demanda',
-    description: 'Só roda quando você clica em "Rodar". Nada é analisado automaticamente.',
-  },
-}
 
 function OptionCards({ options, current, onSelect }: {
   options: { value: string; label: string; description: string }[]
@@ -59,7 +41,6 @@ export default function EngineCard({ item, setConfig, onRun }: {
   onRun?: (id: string) => void
 }) {
   const { spec, config } = item
-  const triggerOpts = spec.triggers.map(t => ({ value: t, ...(TRIGGER_INFO[t] ?? { label: t, description: '' }) }))
   return (
     <div className="card" style={{ maxWidth: '760px', marginBottom: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -74,13 +55,14 @@ export default function EngineCard({ item, setConfig, onRun }: {
       </div>
       <p style={{ marginTop: '0.4rem', color: 'var(--muted)' }}>{spec.description}</p>
 
-      {triggerOpts.length > 0 && (
-        <div style={{ marginBottom: '0.75rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.35rem' }}>Quando executar</label>
-          <OptionCards options={triggerOpts} current={config['__trigger'] ?? spec.triggers[0]}
-            onSelect={v => setConfig(spec.id, '__trigger', v)} />
-        </div>
-      )}
+      <div style={{ marginBottom: '0.9rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Quando executar</label>
+        <ExecutionMode
+          value={config['__trigger'] ?? spec.triggers[0]}
+          allowed={spec.triggers}
+          onChange={v => setConfig(spec.id, '__trigger', v)}
+        />
+      </div>
 
       {spec.config.map(f => {
         const current = config[f.key] ?? f.default
