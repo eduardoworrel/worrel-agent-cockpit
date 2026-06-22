@@ -8,6 +8,7 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/agui"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
 
 const interpretTimeout = 25 * time.Second
@@ -86,6 +87,13 @@ func (s *Server) attachInterpretation(snap *agui.Snapshot) {
 		if err != nil {
 			s.interpret.release(id)
 			return
+		}
+		// auditoria inegociável: grava o prompt enviado e a resposta crua da IA.
+		if s.deps.Store != nil {
+			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
+				EngineID: "interpret", SessionID: id, Trigger: "agent_self",
+				Input: prompt, Output: out,
+			})
 		}
 		s.interpret.store(id, msg, agui.ParseInterpretation(out))
 		s.deps.Bus.Publish(bus.Event{Type: "interaction.changed", Payload: map[string]any{"session_id": id}})
