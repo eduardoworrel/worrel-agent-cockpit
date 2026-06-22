@@ -6,6 +6,8 @@ import remarkGfm from 'remark-gfm';
 import { getInteraction, sendPrompt, respondInteraction, killSession } from '../api';
 import type { InteractionSnapshot, HistoryLine } from '../api';
 import { useEvents } from '../useEvents';
+import { useDraft } from '../useDraft';
+import { providerLabel } from '../session';
 
 // SessionStream é a "interface de terminal" de uma sessão dirigida pelo MOTOR
 // (stream-json): não há PTY/xterm — mostramos o HISTÓRICO da conversa (você, IA,
@@ -15,7 +17,8 @@ export default function SessionStream() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [snap, setSnap] = useState<InteractionSnapshot | null>(null);
-  const [text, setText] = useState('');
+  // Rascunho persistido por sessão: navegar entre terminais não perde o texto.
+  const [text, setText, clearDraft] = useDraft(id);
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +50,7 @@ export default function SessionStream() {
   function submit() {
     if (!id || !text.trim()) return;
     const t = text.trim();
-    setText('');
+    clearDraft();
     act(() => sendPrompt(id, t));
   }
 
@@ -63,7 +66,7 @@ export default function SessionStream() {
       <header className="sstream-head">
         <button className="btn btn-secondary btn-sm" onClick={() => navigate('/')}>← {t('home.nav.home')}</button>
         <span className="ixp-state" data-state={state}>{t(`home.ix.state.${state}`)}</span>
-        <span className="sstream-engine">engine</span>
+        <span className="sstream-engine">{providerLabel('engine')}</span>
         <button className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }}
           onClick={() => id && act(() => killSession(id).then(() => navigate('/')))}>
           {t('terminal.kill')}

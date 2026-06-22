@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Session, InteractionSnapshot } from '../api';
-import { ProviderBadge, sessionName } from '../session';
+import { sessionName } from '../session';
 import InteractionPanel from './InteractionPanel';
 import ResponderShell from './ResponderShell';
 
@@ -68,17 +68,36 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
     ? (!!snapshot.interrupt || snapshot.state === 'awaiting')
     : awaiting;
 
+  // Estado ao vivo para o farol da barra: em andamento / esperando você / parada.
+  const liveState: 'working' | 'awaiting' | 'ended' =
+    snapshot?.state ?? (awaiting ? 'awaiting' : 'working');
+  const stateLabel = t(`home.ix.state.${liveState}`);
+
   return (
     <div className={`tcard${needsAttention ? ' needs-attention' : ''}`}>
       <div className="tcard-titlebar" onClick={goTerminal} role="button" tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter') goTerminal(); }}>
+        {/* Farol de estado: verde pulsante = em andamento; âmbar = esperando você; cinza = parada. */}
+        <span className="tcard-status" data-state={liveState} title={stateLabel} role="img" aria-label={stateLabel} />
         <span className="tcard-dots" aria-hidden="true"><i /><i /><i /></span>
-        <span className="tcard-mode">{t('home.autoMode')}</span>
-        <ProviderBadge adapter={session.adapter} />
+        {/* Título da sessão: reflete o que está acontecendo e é atualizado com frequência. */}
+        <span className="tcard-mode" title={sessionName(session)}>{sessionName(session)}</span>
+        {/* Switch de resumo por IA (custa créditos) — ocupa o lugar antes usado pela badge do adapter. */}
+        <label className="tcard-ai-switch" title={t('home.summaryToggle', 'Resumo por IA (custa créditos)')}
+          onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={summaryEnabled}
+            onChange={(e) => onToggleSummary(e.target.checked)}
+          />
+          <span className="tcard-ai-switch-track" aria-hidden="true">
+            <span className="tcard-ai-switch-thumb" />
+          </span>
+          <span className="tcard-ai-switch-label">IA</span>
+        </label>
       </div>
 
       <div className="tcard-body">
-        <div className="tcard-heading">{sessionName(session)}</div>
         <ol className="tcard-timeline">
           {lines.map((line, i) => (
             <li key={i}>{line}</li>
@@ -103,15 +122,6 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
             <b>{suggestions}</b> {t('home.suggestions', { count: suggestions })}
           </span>
         )}
-        <label className="tcard-ai-toggle" title={t('home.summaryToggle', 'Resumo por IA (custa créditos)')}
-          onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={summaryEnabled}
-            onChange={(e) => onToggleSummary(e.target.checked)}
-          />
-          <span>IA</span>
-        </label>
       </div>
 
       {open && snapshot && (

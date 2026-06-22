@@ -1,6 +1,6 @@
 {
   "name": "worrel",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "Worrel Agent Cockpit — camada de memória local para CLIs agênticos. Local-first, privado.",
   "bin": {
     "worrel": "bin/worrel.js"
@@ -14,9 +14,9 @@
   "license": "MIT",
   "repository": "github:eduardoworrel/worrel-agent-cockpit",
   "optionalDependencies": {
-    "@worrel/darwin-arm64": "0.5.6",
-    "@worrel/darwin-x64": "0.5.6",
-    "@worrel/linux-x64": "0.5.6",
-    "@worrel/linux-arm64": "0.5.6"
+    "@worrel/darwin-arm64": "0.5.7",
+    "@worrel/darwin-x64": "0.5.7",
+    "@worrel/linux-x64": "0.5.7",
+    "@worrel/linux-arm64": "0.5.7"
   }
 }

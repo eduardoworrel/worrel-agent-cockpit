@@ -43,15 +43,31 @@ export function sessionName(s: Session): string {
 const PROVIDER_CLASS: Record<string, string> = {
   'claude-code': 'sky',
   claude: 'sky',
+  engine: 'sky', // o motor stream-json roda sempre o claude → mesma cor do Claude Code
   opencode: 'amber',
   gemini: 'green',
   codex: 'pink',
   pidev: 'amber',
 };
 
-// ProviderBadge exibe o adapter como badge categórica.
+// Rótulo amigável por adapter. O adapter "engine" é um marcador INTERNO de
+// roteamento (sessão dirigida pelo motor stream-json, que sempre executa o
+// `claude`) — para o usuário ele é simplesmente o Claude Code.
+const PROVIDER_LABEL: Record<string, string> = {
+  engine: 'Claude Code',
+  'claude-code': 'Claude Code',
+};
+
+// providerLabel devolve o nome legível do provider (cai no próprio adapter
+// quando não há mapeamento específico).
+export function providerLabel(adapter: string): string {
+  if (!adapter) return '';
+  return PROVIDER_LABEL[adapter.toLowerCase()] ?? adapter;
+}
+
+// ProviderBadge exibe o adapter como badge categórica (com nome amigável).
 export function ProviderBadge({ adapter }: { adapter: string }) {
   if (!adapter) return null;
   const cls = PROVIDER_CLASS[adapter.toLowerCase()] ?? '';
-  return <span className={`pill provider-badge ${cls}`.trim()}>{adapter}</span>;
+  return <span className={`pill provider-badge ${cls}`.trim()}>{providerLabel(adapter)}</span>;
 }

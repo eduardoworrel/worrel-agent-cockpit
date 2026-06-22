@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { respondInteraction, sendPrompt } from '../api';
 import type { InteractionSnapshot } from '../api';
+import { useDraft } from '../useDraft';
 
 interface Props {
   snapshot: InteractionSnapshot;
@@ -38,16 +39,17 @@ function cleanDetail(detail?: string): string {
 //   - texto (kind=text) ou ocioso → campo livre → vira prompt.
 export default function InteractionPanel({ snapshot, onActed, onClose, onOpenChat }: Props) {
   const { t } = useTranslation();
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
   const { interrupt, state } = snapshot;
   const id = snapshot.session_id;
+  // Rascunho persistido por sessão (compartilhado com o chat).
+  const [text, setText, clearDraft] = useDraft(id);
+  const [busy, setBusy] = useState(false);
   const isPermission = !!interrupt?.request_id;
 
   async function act(fn: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
-    try { await fn(); setText(''); onActed(); onClose(); } catch { /* já resolvido/encerrado */ }
+    try { await fn(); clearDraft(); onActed(); onClose(); } catch { /* já resolvido/encerrado */ }
     finally { setBusy(false); }
   }
 
@@ -57,6 +59,9 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
 
   // Contexto = eventos narrados (concisos), nunca o output cru / JSONs.
   const context = snapshot.progress ?? [];
+  // O que a IA espera de você: a pergunta bloqueante pendente OU a última fala da
+  // IA (que costuma terminar numa pergunta). Pode não existir — aí a seção some.
+  const expects = interrupt?.prompt ?? snapshot.message;
 
   return (
     <div className="ixp" role="dialog" aria-label={t('home.ix.title')}>
@@ -68,16 +73,35 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
         <button className="ixp-close" onClick={onClose} aria-label={t('common.cancel')}>✕</button>
       </div>
 
+      {/* Meu último pedido: o que o usuário pediu por último (o harness consegue digerir). */}
+      {snapshot.user_message && (
+        <section className="ixp-section">
+          <h4 className="ixp-section-title">{t('home.ix.myRequest')}</h4>
+          <p className="ixp-section-body">{snapshot.user_message}</p>
+        </section>
+      )}
+
+      {/* Últimas ações: o que a IA já fez. */}
       {context.length > 0 && (
-        <ul className="ixp-ctx-lines">
-          {context.map((l, i) => <li key={i} className="ixp-ctx">{l}</li>)}
-        </ul>
+        <section className="ixp-section">
+          <h4 className="ixp-section-title">{t('home.ix.lastActions')}</h4>
+          <ul className="ixp-ctx-lines">
+            {context.map((l, i) => <li key={i} className="ixp-ctx">{l}</li>)}
+          </ul>
+        </section>
+      )}
+
+      {/* O que a IA espera de você: a pergunta final (pode não haver). */}
+      {expects && (
+        <section className="ixp-section ixp-section-expects">
+          <h4 className="ixp-section-title">{t('home.ix.expects')}</h4>
+          <p className="ixp-section-body">{expects}</p>
+        </section>
       )}
 
       {/* Responder. */}
       {isPermission ? (
         <>
-          <div className="ixp-prompt-q">{interrupt!.prompt}</div>
           {interrupt!.detail && <pre className="ixp-detail">{cleanDetail(interrupt!.detail)}</pre>}
           <div className="ixp-actions">
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => permit(true)}>{t('ask.allow')}</button>
@@ -86,7 +110,6 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
         </>
       ) : interrupt?.kind === 'choice' && interrupt.options?.length ? (
         <>
-          {interrupt.prompt && <div className="ixp-said">{interrupt.prompt}</div>}
           <div className="ixp-actions ixp-options">
             {interrupt.options.map((opt) => (
               <button key={opt} className="btn btn-secondary btn-sm" disabled={busy} onClick={() => reply(opt)}>{opt}</button>
