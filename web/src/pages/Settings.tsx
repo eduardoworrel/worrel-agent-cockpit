@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getSettings, putSettings } from '../api';
+import { getSettings, putSettings, listProjects, listSessions } from '../api';
+import EngineCard, { type EngineItem } from '../components/EngineCard';
+import OnboardingWizard from '../components/OnboardingWizard';
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -10,6 +12,40 @@ export default function Settings() {
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  // Config dos motores de destilação (mesma fonte do wizard de onboarding).
+  const [engines, setEngines] = useState<EngineItem[]>([]);
+  const [showWizard, setShowWizard] = useState(false);
+  const loadEngines = () =>
+    fetch('/api/engines').then(r => r.json()).then(setEngines).catch(() => setEngines([]));
+  const setEngineConfig = (id: string, key: string, value: string) =>
+    fetch(`/api/engines/${id}/config`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    }).then(loadEngines);
+  const runEngine = (id: string) =>
+    fetch(`/api/engines/${id}/run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: '', session_id: prompt('session_id?') || '' }),
+    }).then(() => {}).catch(() => {});
+
+  useEffect(() => { loadEngines(); }, []);
+
+  // Primeiro uso: abre o wizard automaticamente (sem projetos/sessões e ainda não visto).
+  useEffect(() => {
+    if (localStorage.getItem('worrel.onboarding.seen') === '1') return;
+    Promise.all([listProjects().catch(() => []), listSessions().catch(() => [])])
+      .then(([projs, sess]) => {
+        const empty = projs.length === 0 && sess.filter(s => s.mode === 'wrapper').length === 0;
+        if (empty) setShowWizard(true);
+      });
+  }, []);
+
+  const closeWizard = () => {
+    localStorage.setItem('worrel.onboarding.seen', '1');
+    setShowWizard(false);
+    loadEngines();
+  };
 
   async function handleReset() {
     const ok = window.confirm(
@@ -63,6 +99,7 @@ export default function Settings() {
     }
   }
 
+  if (showWizard) return <OnboardingWizard onClose={closeWizard} />;
   if (loading) return <div className="main"><p>{t('common.loading')}</p></div>;
 
   return (
@@ -82,6 +119,19 @@ export default function Settings() {
         {error && <p className="error-banner">{t('common.actionFailed')}</p>}
         <button className="btn btn-primary" disabled={busy} onClick={handleSave}>{t('settings.save')}</button>
         {saved && <span style={{ marginLeft: '1rem', color: 'var(--green)', fontWeight: 600 }}>{t('settings.saved')}</span>}
+      </div>
+
+      <div style={{ marginTop: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '760px' }}>
+          <h2 style={{ margin: 0 }}>{t('settings.engines', 'Motores')}</h2>
+          <button className="btn btn-secondary" onClick={() => setShowWizard(true)}>{t('settings.configureEngines', 'Abrir assistente')}</button>
+        </div>
+        <p style={{ color: 'var(--muted)', maxWidth: '760px' }}>
+          {t('settings.enginesHint', 'Ative, configure e ajuste os prompts de cada motor de destilação.')}
+        </p>
+        {engines.map(it => (
+          <EngineCard key={it.spec.id} item={it} setConfig={setEngineConfig} onRun={runEngine} />
+        ))}
       </div>
 
       <div className="card" style={{ maxWidth: '480px', marginTop: '1.5rem', borderColor: 'var(--red)' }}>

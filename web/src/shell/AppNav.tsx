@@ -25,12 +25,13 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
   const byProject = (pid: string) => live.filter((s) => s.project_id === pid);
   const orphans = live.filter((s) => !s.project_id);
 
-  function item(s: Session) {
+  function item(s: Session, isLive: boolean) {
     return (
       <NavLink key={s.id} to={`/sessions/${s.id}`}
-        className={`appnav-term${awaitingIds.has(s.id) ? ' needs-attention' : ''}`}>
+        className={`appnav-term${awaitingIds.has(s.id) ? ' needs-attention' : ''}${isLive ? ' live' : ''}`}>
+        {isLive && <span className="appnav-live-dot" aria-hidden="true" />}
         <span className="appnav-term-name">{sessionName(s)}</span>
-        <ProviderBadge adapter={s.adapter} />
+        <span className="appnav-term-badge"><ProviderBadge adapter={s.adapter} /></span>
       </NavLink>
     );
   }
@@ -40,7 +41,7 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
     return (
       <div className="appnav-term-group" key={name}>
         <div className="appnav-term-proj">{name}</div>
-        {list.map(item)}
+        {list.map((s) => item(s, true))}
       </div>
     );
   }
@@ -53,7 +54,6 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
       </div>
       <nav className="appnav-links">
         <NavLink to="/" end className="appnav-link">{t('home.nav.home')}</NavLink>
-        <NavLink to="/engines" className="appnav-link">{t('nav.engines', 'Motores')}</NavLink>
         <span className="appnav-link disabled">{t('home.nav.metrics')}</span>
         <span className="appnav-link disabled">{t('home.nav.joystick')}</span>
         <span className="appnav-link disabled">{t('home.nav.lab')}</span>
@@ -73,7 +73,7 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds }: Pro
             {ended.length > 0 && (
               <div className="appnav-term-group">
                 <div className="appnav-term-proj appnav-term-history">{t('terminals.history')}</div>
-                {ended.slice(0, 8).map(item)}
+                {ended.slice(0, 8).map((s) => item(s, false))}
               </div>
             )}
           </div>

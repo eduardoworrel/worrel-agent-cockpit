@@ -9,7 +9,6 @@ import AskBalloons from './components/AskBalloons';
 import Project from './pages/Project';
 import Settings from './pages/Settings';
 import SessionRoute from './pages/SessionRoute';
-import Engines from './pages/Engines';
 import SecretApprovalModal from './components/SecretApprovalModal';
 import NewSessionWizard from './components/NewSessionWizard';
 import InteractionStyleOnboarding from './components/InteractionStyleOnboarding';
@@ -227,7 +226,6 @@ function AppInner() {
                 reloadKey={reloadKey}
               />
             } />
-            <Route path="/engines" element={<Engines />} />
             <Route path="/projects/:id" element={<Project />} />
             <Route path="/sessions/:id" element={<SessionRoute sessions={wrapperSessions} />} />
             <Route path="/settings" element={<Settings />} />
