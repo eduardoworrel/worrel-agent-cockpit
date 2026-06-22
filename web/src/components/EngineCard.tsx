@@ -24,19 +24,17 @@ function Pills({ options, current, onSelect, allowed }: {
   onSelect: (value: string) => void
   allowed?: string[]
 }) {
+  const shown = options.filter(o => !allowed || allowed.includes(o.value))
   return (
     <div className="ec-pills">
-      {options.map(o => {
-        const ok = !allowed || allowed.includes(o.value)
-        return (
-          <button key={o.value} type="button" disabled={!ok}
-            className={`ec-pill${current === o.value ? ' on' : ''}${!ok ? ' off' : ''}`}
-            onClick={() => ok && onSelect(o.value)}>
-            <span>{o.label}</span>
-            <i className="ec-info" data-tip={ok ? o.description : 'Indisponível neste motor'}>ⓘ</i>
-          </button>
-        )
-      })}
+      {shown.map(o => (
+        <button key={o.value} type="button"
+          className={`ec-pill${current === o.value ? ' on' : ''}`}
+          onClick={() => onSelect(o.value)}>
+          <span>{o.label}</span>
+          <i className="ec-info" data-tip={o.description}>ⓘ</i>
+        </button>
+      ))}
     </div>
   )
 }
