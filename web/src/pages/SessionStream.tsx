@@ -52,8 +52,11 @@ export default function SessionStream() {
   }
 
   const interrupt = snap?.interrupt;
+  const isPermission = !!interrupt?.request_id;
   const state = snap?.state ?? 'working';
   const history = snap?.history ?? [];
+
+  const reply = (value: string) => { if (id) act(() => sendPrompt(id, value)); };
 
   return (
     <div className="sstream">
@@ -75,15 +78,30 @@ export default function SessionStream() {
         )}
       </div>
 
-      {interrupt ? (
+      {isPermission ? (
         <div className="sstream-foot sstream-permission">
-          <div className="sstream-perm-q">{interrupt.prompt}</div>
-          {interrupt.detail && <pre className="ixp-detail">{interrupt.detail}</pre>}
+          <div className="sstream-perm-q">{interrupt!.prompt}</div>
           <div className="ixp-actions">
             <button className="btn btn-primary btn-sm" disabled={busy}
-              onClick={() => id && act(() => respondInteraction(id, interrupt.request_id, 'allow'))}>{t('ask.allow')}</button>
+              onClick={() => id && act(() => respondInteraction(id, interrupt!.request_id, 'allow'))}>{t('ask.allow')}</button>
             <button className="btn btn-danger btn-sm" disabled={busy}
-              onClick={() => id && act(() => respondInteraction(id, interrupt.request_id, 'deny'))}>{t('ask.deny')}</button>
+              onClick={() => id && act(() => respondInteraction(id, interrupt!.request_id, 'deny'))}>{t('ask.deny')}</button>
+          </div>
+        </div>
+      ) : interrupt?.kind === 'choice' && interrupt.options?.length ? (
+        <div className="sstream-foot sstream-permission">
+          {interrupt.prompt && <div className="sstream-perm-q">{interrupt.prompt}</div>}
+          <div className="ixp-actions ixp-options">
+            {interrupt.options.map((opt) => (
+              <button key={opt} className="btn btn-secondary btn-sm" disabled={busy} onClick={() => reply(opt)}>{opt}</button>
+            ))}
+          </div>
+          <div className="sstream-foot" style={{ padding: 0, border: 'none', background: 'none' }}>
+            <span className="nsw-prompt-glyph" aria-hidden="true">›</span>
+            <textarea className="sstream-input" value={text} onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+              placeholder={t('home.ix.promptPlaceholder')} rows={2} />
+            <button className="btn btn-primary btn-sm" disabled={busy || !text.trim()} onClick={submit}>{t('home.ix.send')}</button>
           </div>
         </div>
       ) : (

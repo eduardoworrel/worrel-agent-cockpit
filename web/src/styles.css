@@ -1919,3 +1919,11 @@ tr:last-child td { border-bottom: none; }
 .chat-md table { border-collapse: collapse; font-size: 0.82rem; margin: 0 0 8px; display: block; overflow-x: auto; }
 .chat-md th, .chat-md td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 .chat-md blockquote { border-left: 3px solid var(--line-strong); margin: 0 0 8px; padding-left: 10px; color: var(--muted); }
+
+/* botão "ver no chat" no header do modal de resposta */
+.ixp-open-chat {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-size: 0.78rem; color: var(--orange-ink); font-weight: 600;
+}
+.ixp-open-chat:hover { text-decoration: underline; }
+.ixp-head .ixp-close { margin-left: 8px; }

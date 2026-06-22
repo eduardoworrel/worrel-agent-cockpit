@@ -8,6 +8,8 @@ interface Props {
   // Chamado após responder/enviar para a Home re-buscar o snapshot.
   onActed: () => void;
   onClose: () => void;
+  // Abre a conversa completa (chat) para decidir lá vendo todo o contexto.
+  onOpenChat?: () => void;
 }
 
 // cleanDetail transforma o input cru de uma ferramenta (JSON) num resumo legível
@@ -34,7 +36,7 @@ function cleanDetail(detail?: string): string {
 //   - permissão (interrupt com request_id) → allow/deny pelo control protocol;
 //   - escolha interpretada (kind=choice, sem request_id) → opções → viram prompt;
 //   - texto (kind=text) ou ocioso → campo livre → vira prompt.
-export default function InteractionPanel({ snapshot, onActed, onClose }: Props) {
+export default function InteractionPanel({ snapshot, onActed, onClose, onOpenChat }: Props) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,6 +62,9 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
     <div className="ixp" role="dialog" aria-label={t('home.ix.title')}>
       <div className="ixp-head">
         <span className="ixp-state" data-state={state}>{t(`home.ix.state.${state}`)}</span>
+        {onOpenChat && (
+          <button className="ixp-open-chat" onClick={onOpenChat}>{t('home.ix.openChat')} →</button>
+        )}
         <button className="ixp-close" onClick={onClose} aria-label={t('common.cancel')}>✕</button>
       </div>
 

@@ -91,7 +91,8 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
 
       {open && snapshot && (
         <ResponderShell onClose={() => setOpen(false)}>
-          <InteractionPanel snapshot={snapshot} onActed={onActed} onClose={() => setOpen(false)} />
+          <InteractionPanel snapshot={snapshot} onActed={onActed} onClose={() => setOpen(false)}
+            onOpenChat={() => { setOpen(false); navigate(`/sessions/${session.id}`); }} />
         </ResponderShell>
       )}
     </div>
