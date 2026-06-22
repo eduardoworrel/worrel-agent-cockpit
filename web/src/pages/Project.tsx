@@ -9,6 +9,7 @@ import {
   revertMemory,
   listMemoryEntries,
   deleteMemoryEntry,
+  listAgents,
   listSkills,
   createSkill,
   updateSkill,
@@ -25,7 +26,7 @@ import {
   importSkill,
   postHandoff,
 } from '../api';
-import type { Project as ProjectType, MemoryVersion, MemoryEntry, Skill, Session, Suggestion, DetectedAdapter, SkillStats } from '../api';
+import type { Project as ProjectType, MemoryVersion, MemoryEntry, Agent, Skill, Session, Suggestion, DetectedAdapter, SkillStats } from '../api';
 import SecretsTab from '../components/SecretsTab';
 import SkillHealth from '../components/SkillHealth';
 import Lineage from '../components/Lineage';
@@ -59,6 +60,7 @@ export default function Project() {
   const [memNote, setMemNote] = useState('');
   const [versions, setVersions] = useState<MemoryVersion[]>([]);
   const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
 
   // Skills
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -90,11 +92,12 @@ export default function Project() {
     async function loadAll(projectId: string) {
       setLoading(true);
       try {
-        const [proj, mem, vers, entries, sk, sess, sugs, adps] = await Promise.all([
+        const [proj, mem, vers, entries, ags, sk, sess, sugs, adps] = await Promise.all([
           getProject(projectId),
           getMemory(projectId).catch(() => null),
           listMemoryVersions(projectId).catch(() => [] as MemoryVersion[]),
           listMemoryEntries(projectId).catch(() => [] as MemoryEntry[]),
+          listAgents(projectId).catch(() => [] as Agent[]),
           listSkills(projectId),
           listSessions(projectId),
           listSuggestions(projectId, 'pending'),
@@ -105,6 +108,7 @@ export default function Project() {
         if (mem) { setMemContent(mem.content); }
         setVersions(vers);
         setMemoryEntries(entries);
+        setAgents(ags);
         setSkills(sk);
         void loadSkillStats(sk);
         setSessions(sess);
@@ -373,6 +377,17 @@ export default function Project() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {agents.length > 0 && (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 0.75rem' }}>{t('agents.title', 'Agentes')}</h3>
+              {agents.map((a) => (
+                <div key={a.id} style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ fontSize: '0.9rem' }}>{a.name}</strong>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)', whiteSpace: 'pre-wrap', marginTop: '0.25rem' }}>{a.persona}</div>
+                </div>
+              ))}
             </div>
           )}
           <label htmlFor="mem-content">{t('memory.content')}</label>

@@ -261,12 +261,36 @@ export function createSuggestion(s: Partial<Suggestion>): Promise<Suggestion> {
   return req('/suggestions', { method: 'POST', body: JSON.stringify(s) });
 }
 
-export function acceptSuggestion(id: string, edited?: { title: string; payload: string }, supersede?: string): Promise<Suggestion> {
-  const qs = supersede ? `?supersede=${encodeURIComponent(supersede)}` : '';
+export function acceptSuggestion(
+  id: string,
+  edited?: { title: string; payload: string },
+  supersede?: string,
+  as?: 'skill' | 'agente',
+): Promise<Suggestion> {
+  const params = new URLSearchParams();
+  if (supersede) params.set('supersede', supersede);
+  if (as) params.set('as', as);
+  const q = params.toString();
+  const qs = q ? `?${q}` : '';
   return req(`/suggestions/${id}/accept${qs}`, {
     method: 'POST',
     body: JSON.stringify(edited ?? {}),
   });
+}
+
+export interface Agent {
+  id: string;
+  project_id: string;
+  slug: string;
+  name: string;
+  persona: string;
+  evidence: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export function listAgents(projectId: string): Promise<Agent[]> {
+  return req(`/projects/${projectId}/agents`);
 }
 
 export function rejectSuggestion(id: string): Promise<Suggestion> {
@@ -467,4 +491,53 @@ export function promoteSession(id: string, name: string, description: string): P
 
 export function listActiveSessions(): Promise<Session[]> {
   return req('/sessions/active');
+}
+
+// --- AG-UI interaction channel (Home) ---
+// Contrato estável que a Home consome para interagir com a sessão sem ver o
+// terminal. Hoje preenchido por um tradutor (transcript/ask); amanhã pelo motor.
+
+export type InteractionState = 'working' | 'awaiting' | 'ended';
+export type InterruptKind = 'permission' | 'choice' | 'text';
+
+export interface Interrupt {
+  request_id: string;
+  kind: InterruptKind;
+  prompt: string;
+  detail?: string;
+  options?: string[];
+}
+
+export interface ToolCall {
+  name: string;
+  summary?: string;
+}
+
+export interface InteractionSnapshot {
+  session_id: string;
+  state: InteractionState;
+  message?: string;        // última fala/pergunta da IA
+  user_message?: string;   // último pedido do usuário
+  tool_calls?: ToolCall[]; // o que a IA fez
+  interrupt?: Interrupt;   // pergunta bloqueante pendente
+}
+
+export function getInteraction(sessionId: string): Promise<InteractionSnapshot> {
+  return req(`/sessions/${sessionId}/interaction`);
+}
+
+// respondInteraction responde uma pergunta bloqueante (interrupt) pelo request_id.
+export function respondInteraction(sessionId: string, requestId: string, answer: string): Promise<void> {
+  return req(`/sessions/${sessionId}/interaction/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ request_id: requestId, answer }),
+  });
+}
+
+// sendPrompt injeta um novo prompt no PTY quando a sessão está ociosa.
+export function sendPrompt(sessionId: string, text: string): Promise<void> {
+  return req(`/sessions/${sessionId}/interaction/prompt`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
 }

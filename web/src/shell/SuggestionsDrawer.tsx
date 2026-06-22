@@ -79,7 +79,16 @@ export default function SuggestionsDrawer({ activeProjectId, projects, reloadKey
         <strong>{sg.title}</strong>
         <SuggestionBody sg={sg} />
         <div className="drawer-card-actions">
-          {sg.type === 'add_memory_entry' && relatedId ? (
+          {sg.type === 'skill_or_agente_candidate' ? (
+            <>
+              <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(sg.id, (id) => acceptSuggestion(id, undefined, undefined, 'skill'))}>
+                {t('suggestions.createAsSkill', 'Criar como Skill')}
+              </button>
+              <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => act(sg.id, (id) => acceptSuggestion(id, undefined, undefined, 'agente'))}>
+                {t('suggestions.createAsAgente', 'Criar como Agente')}
+              </button>
+            </>
+          ) : sg.type === 'add_memory_entry' && relatedId ? (
             <>
               <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(sg.id, (id) => acceptSuggestion(id))}>
                 {t('suggestions.coexist', 'Coexistir')}

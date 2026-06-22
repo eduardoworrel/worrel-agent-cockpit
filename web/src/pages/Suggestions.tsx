@@ -78,9 +78,9 @@ export default function Suggestions() {
     }
   }
 
-  function handleAccept(sugId: string, supersede?: string) {
+  function handleAccept(sugId: string, supersede?: string, as?: 'skill' | 'agente') {
     return run(async () => {
-      await acceptSuggestion(sugId, undefined, supersede);
+      await acceptSuggestion(sugId, undefined, supersede, as);
       setSuggestions((prev) => prev.filter((s) => s.id !== sugId));
     });
   }
@@ -297,7 +297,12 @@ export default function Suggestions() {
                             </select>
                           </label>
                         )}
-                        {sg.type === 'add_memory_entry' && getMemoryEntryRelatedId(sg) ? (
+                        {sg.type === 'skill_or_agente_candidate' ? (
+                          <>
+                            <button className="btn btn-primary" disabled={busy} onClick={() => handleAccept(sg.id, undefined, 'skill')}>{t('suggestions.createAsSkill', 'Criar como Skill')}</button>
+                            <button className="btn btn-secondary" disabled={busy} onClick={() => handleAccept(sg.id, undefined, 'agente')}>{t('suggestions.createAsAgente', 'Criar como Agente')}</button>
+                          </>
+                        ) : sg.type === 'add_memory_entry' && getMemoryEntryRelatedId(sg) ? (
                           <>
                             <button className="btn btn-primary" disabled={busy} onClick={() => handleAccept(sg.id)}>{t('suggestions.coexist', 'Coexistir')}</button>
                             <button className="btn btn-secondary" disabled={busy} onClick={() => handleAccept(sg.id, getMemoryEntryRelatedId(sg))}>{t('suggestions.replaceEntry', 'Substituir entrada')}</button>

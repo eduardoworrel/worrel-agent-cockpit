@@ -241,6 +241,7 @@ export default function SuggestionBody({ sg, skills }: Props) {
     if (norm === 'skill.learned' || norm === 'create.skill' || norm === 'skill') return 'skill.learned';
     if (norm === 'add.memory' || norm === 'add.correction') return 'add_memory';
     if (norm === 'add.memory.entry') return 'add_memory_entry';
+    if (norm === 'skill.or.agente.candidate') return 'skill_or_agente_candidate';
     if (norm === 'create.project') return 'create_project';
     if (norm === 'secret.detected') return 'secret.detected';
     // Any other skill-family type still renders as a skill rather than raw JSON:
@@ -306,6 +307,28 @@ export default function SuggestionBody({ sg, skills }: Props) {
             </div>
           )}
           {content ? <ContentPreview text={content} /> : <RawFallback text={sg.payload} />}
+        </div>
+      );
+    }
+
+    case 'skill_or_agente_candidate': {
+      const sd = (data.skill_draft && typeof data.skill_draft === 'object' ? data.skill_draft : {}) as Record<string, unknown>;
+      const ad = (data.agente_draft && typeof data.agente_draft === 'object' ? data.agente_draft : {}) as Record<string, unknown>;
+      const sName = typeof sd.name === 'string' ? sd.name : sg.title;
+      const sContent = typeof sd.content === 'string' ? sd.content : '';
+      const aName = typeof ad.name === 'string' ? ad.name : '';
+      const aPersona = typeof ad.persona === 'string' ? ad.persona : '';
+      return (
+        <div>
+          <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{sg.title || str('title')}</div>
+          <div style={{ marginTop: 6 }}>
+            <Label>{t('suggestions.asSkill', 'Como Skill')}: «{sName}»</Label>
+            {sContent ? <ContentPreview text={sContent} /> : null}
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <Label>{t('suggestions.asAgente', 'Como Agente')}: «{aName}»</Label>
+            {aPersona ? <ContentPreview text={aPersona} /> : null}
+          </div>
         </div>
       );
     }
