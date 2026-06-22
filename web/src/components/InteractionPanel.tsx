@@ -10,8 +10,27 @@ interface Props {
   onClose: () => void;
 }
 
-// InteractionPanel é a janela de resposta ao agente. Mostra a última fala da IA
-// + contexto recente e o responder adequado:
+// cleanDetail transforma o input cru de uma ferramenta (JSON) num resumo legível
+// — sem despejar JSON gigante no modal.
+function cleanDetail(detail?: string): string {
+  if (!detail) return '';
+  try {
+    const obj = JSON.parse(detail);
+    if (obj && typeof obj === 'object') {
+      return Object.entries(obj)
+        .map(([k, v]) => {
+          let s = typeof v === 'string' ? v : JSON.stringify(v);
+          if (s.length > 140) s = s.slice(0, 139) + '…';
+          return `${k}: ${s}`;
+        })
+        .join('\n');
+    }
+  } catch { /* não é JSON */ }
+  return detail.length > 200 ? detail.slice(0, 199) + '…' : detail;
+}
+
+// InteractionPanel é a janela de resposta ao agente. Mostra um CONTEXTO conciso
+// (eventos narrados — não o output cru) e o responder adequado:
 //   - permissão (interrupt com request_id) → allow/deny pelo control protocol;
 //   - escolha interpretada (kind=choice, sem request_id) → opções → viram prompt;
 //   - texto (kind=text) ou ocioso → campo livre → vira prompt.
@@ -30,13 +49,12 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
     finally { setBusy(false); }
   }
 
-  // Permissão: responde pelo control protocol (allow/deny).
   const permit = (allow: boolean) =>
     act(() => respondInteraction(id, interrupt!.request_id, allow ? 'allow' : 'deny'));
-  // Escolha/texto/prompt livre: vira um novo turno (prompt).
   const reply = (value: string) => act(() => sendPrompt(id, value));
 
-  const contextLines = (snapshot.history ?? []).slice(-6, -1); // contexto antes da última fala
+  // Contexto = eventos narrados (concisos), nunca o output cru / JSONs.
+  const context = snapshot.progress ?? [];
 
   return (
     <div className="ixp" role="dialog" aria-label={t('home.ix.title')}>
@@ -45,30 +63,17 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
         <button className="ixp-close" onClick={onClose} aria-label={t('common.cancel')}>✕</button>
       </div>
 
-      {/* Contexto: o que veio antes + o último pedido. */}
-      <div className="ixp-context">
-        {snapshot.user_message && (
-          <p className="ixp-you"><b>{t('home.ix.youAsked')}</b> {snapshot.user_message}</p>
-        )}
-        {contextLines.length > 0 && (
-          <ul className="ixp-ctx-lines">
-            {contextLines.map((h, i) => (
-              <li key={i} className={`ixp-ctx role-${h.role}`}>{h.text}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* A última coisa dita / a pergunta. */}
-      {(interrupt?.prompt || snapshot.message) && !isPermission && (
-        <div className="ixp-said">{interrupt?.prompt || snapshot.message}</div>
+      {context.length > 0 && (
+        <ul className="ixp-ctx-lines">
+          {context.map((l, i) => <li key={i} className="ixp-ctx">{l}</li>)}
+        </ul>
       )}
 
       {/* Responder. */}
       {isPermission ? (
         <>
           <div className="ixp-prompt-q">{interrupt!.prompt}</div>
-          {interrupt!.detail && <pre className="ixp-detail">{interrupt!.detail}</pre>}
+          {interrupt!.detail && <pre className="ixp-detail">{cleanDetail(interrupt!.detail)}</pre>}
           <div className="ixp-actions">
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => permit(true)}>{t('ask.allow')}</button>
             <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => permit(false)}>{t('ask.deny')}</button>
@@ -76,6 +81,7 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
         </>
       ) : interrupt?.kind === 'choice' && interrupt.options?.length ? (
         <>
+          {interrupt.prompt && <div className="ixp-said">{interrupt.prompt}</div>}
           <div className="ixp-actions ixp-options">
             {interrupt.options.map((opt) => (
               <button key={opt} className="btn btn-secondary btn-sm" disabled={busy} onClick={() => reply(opt)}>{opt}</button>
@@ -92,7 +98,7 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
       ) : state === 'ended' ? (
         <p className="ixp-muted">{t('home.ix.ended')}</p>
       ) : (
-        // texto livre (kind=text, ou ocioso sem interrupt): manda um prompt novo.
+        // texto livre (ocioso): manda um prompt novo.
         <form className="ixp-form" onSubmit={(e) => { e.preventDefault(); if (text.trim()) reply(text.trim()); }}>
           <textarea className="ixp-textarea" value={text} onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (text.trim()) reply(text.trim()); } }}

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getInteraction, sendPrompt, respondInteraction, killSession } from '../api';
-import type { InteractionSnapshot } from '../api';
+import type { InteractionSnapshot, HistoryLine } from '../api';
 import { useEvents } from '../useEvents';
 
 // SessionStream é a "interface de terminal" de uma sessão dirigida pelo MOTOR
@@ -67,14 +69,9 @@ export default function SessionStream() {
 
       <div className="sstream-body" ref={bodyRef}>
         {history.length === 0 && <div className="sstream-empty">{t('home.ix.working')}</div>}
-        {history.map((h, i) => (
-          <div key={i} className={`sstream-line role-${h.role}`}>
-            <span className="sstream-role">{roleLabel(h.role, t)}</span>
-            <span className="sstream-text">{h.text}</span>
-          </div>
-        ))}
+        {history.map((h, i) => <ChatLine key={i} line={h} />)}
         {state === 'working' && history.length > 0 && (
-          <div className="sstream-line role-system"><span className="sstream-role" /><span className="sstream-text sstream-thinking">…</span></div>
+          <div className="chat-thinking">{t('home.ix.working')}<span className="dots"><i /><i /><i /></span></div>
         )}
       </div>
 
@@ -108,11 +105,25 @@ export default function SessionStream() {
   );
 }
 
-function roleLabel(role: string, t: (k: string) => string): string {
-  switch (role) {
-    case 'you': return t('home.ix.youAsked').replace(':', '');
-    case 'ai': return 'IA';
-    case 'tool': return '⚙';
-    default: return '·';
+// ChatLine renderiza uma linha do histórico como uma bolha de chat:
+//   you → bolha do usuário (direita); ai → markdown renderizado (esquerda);
+//   tool → linha discreta (mono); system → nota central.
+function ChatLine({ line }: { line: HistoryLine }) {
+  if (line.role === 'tool') {
+    return <div className="chat-tool"><code>{line.text}</code></div>;
   }
+  if (line.role === 'system') {
+    return <div className="chat-system">{line.text}</div>;
+  }
+  if (line.role === 'you') {
+    return <div className="chat-row chat-you"><div className="chat-bubble">{line.text}</div></div>;
+  }
+  // ai → markdown
+  return (
+    <div className="chat-row chat-ai">
+      <div className="chat-bubble chat-md">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{line.text}</ReactMarkdown>
+      </div>
+    </div>
+  );
 }
