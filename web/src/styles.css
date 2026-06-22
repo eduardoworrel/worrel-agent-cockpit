@@ -1438,7 +1438,7 @@ tr:last-child td { border-bottom: none; }
   font-family: var(--display); font-weight: 700; font-size: 1.05rem;
   color: var(--ink); margin-bottom: 20px;
 }
-.appnav-links { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.appnav-links { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow-y: auto; }
 .appnav-link {
   font-family: var(--display); font-size: 1.4rem; font-weight: 600;
   color: var(--faint); text-decoration: none; padding: 2px 4px; border-radius: var(--r-sm);
@@ -1487,11 +1487,19 @@ tr:last-child td { border-bottom: none; }
 .tcard-mode { font-size: 0.72rem; color: var(--muted); }
 .tcard-titlebar .provider-badge { margin-left: auto; }
 .tcard-body { padding: 14px 16px; flex: 1; }
-.tcard-heading { font-family: var(--display); font-weight: 700; color: var(--ink); margin-bottom: 8px; }
-.tcard-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tcard-heading {
+  font-family: var(--display); font-weight: 700; color: var(--ink); margin-bottom: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* altura fixa: espaço reservado para os 3 últimos eventos narrados */
+.tcard-timeline {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px;
+  height: 78px; overflow: hidden;
+}
 .tcard-timeline li {
   font-size: 0.85rem; color: var(--ink-soft); line-height: 1.35;
   padding-left: 14px; position: relative;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tcard-timeline li::before {
   content: ''; position: absolute; left: 0; top: 7px;

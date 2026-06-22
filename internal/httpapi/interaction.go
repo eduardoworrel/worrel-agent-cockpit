@@ -29,8 +29,8 @@ func (s *Server) handleInteraction(w http.ResponseWriter, r *http.Request) {
 			// Auto-mode: se o agente terminou FALANDO (sem permissão pendente),
 			// interpreta a fala em opções/resposta via LLM (assíncrono, cacheado).
 			s.attachInterpretation(&snap)
-			// Título "vivo" da sessão (sidebar/card), gerado do histórico.
-			s.attachEngineTitle(&snap)
+			// Título vivo + eventos narrados (card) gerados do histórico.
+			s.attachEngineSummary(&snap)
 			writeJSON(w, 200, snap)
 			return
 		}

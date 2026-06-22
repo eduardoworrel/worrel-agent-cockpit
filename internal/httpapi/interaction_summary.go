@@ -75,15 +75,20 @@ func (c *progressCache) release(id string) {
 	delete(c.inflight, id)
 }
 
-// attachEngineTitle gera (via LLM, assíncrono e cacheado) um TÍTULO curto e vivo
-// para uma sessão do MOTOR a partir do histórico da conversa, e o grava como
-// nome da sessão (sidebar/card). O progresso do card já vem do próprio motor.
-func (s *Server) attachEngineTitle(snap *agui.Snapshot) {
-	if s.deps.Summarizer == nil || len(snap.History) < 2 {
+// attachEngineSummary gera (via LLM, assíncrono e cacheado) o TÍTULO vivo + os
+// EVENTOS NARRADOS de uma sessão do MOTOR a partir do histórico. Os eventos
+// narrados ("o agente fez X", "está fazendo Y") substituem as mensagens cruas
+// no card (é o que a Home deve mostrar). O título vira o nome da sessão.
+func (s *Server) attachEngineSummary(snap *agui.Snapshot) {
+	if s.deps.Summarizer == nil {
 		return
 	}
 	id := snap.SessionID
-	if !s.titles.claim(id, len(snap.History)) {
+	// usa os eventos narrados em cache no card (em vez das mensagens cruas).
+	if lines, _ := s.titles.get(id); len(lines) > 0 {
+		snap.Progress = lines
+	}
+	if len(snap.History) < 2 || !s.titles.claim(id, len(snap.History)) {
 		return
 	}
 	atLen := len(snap.History)
@@ -96,12 +101,13 @@ func (s *Server) attachEngineTitle(snap *agui.Snapshot) {
 			s.titles.release(id)
 			return
 		}
-		title, _ := agui.ParseProgress(out)
-		s.titles.store(id, nil, atLen)
+		title, lines := agui.ParseProgress(out)
+		s.titles.store(id, lines, atLen)
 		if title != "" {
 			_ = s.deps.Store.SetSessionTitle(id, title)
 			s.deps.Bus.Publish(bus.Event{Type: "session.titled", Payload: map[string]any{"id": id}})
 		}
+		s.deps.Bus.Publish(bus.Event{Type: "interaction.changed", Payload: map[string]any{"session_id": id}})
 	}()
 }
 
