@@ -16,6 +16,7 @@ type Agent struct {
 	Evidence  string `json:"evidence"`
 	CreatedAt int64  `json:"created_at"`
 	UpdatedAt int64  `json:"updated_at"`
+	ActiveGeneration int64 `json:"active_generation"`
 }
 
 var agentSlugRe = regexp.MustCompile(`[^a-z0-9]+`)
@@ -33,18 +34,22 @@ func (s *Store) CreateAgent(projectID, name, persona, evidence string) (*Agent, 
 	}
 	_, err := s.db.Exec(`INSERT INTO agents (id, project_id, slug, name, persona, evidence, created_at, updated_at)
 		VALUES (?,?,?,?,?,?,?,?)`, a.ID, a.ProjectID, a.Slug, a.Name, a.Persona, a.Evidence, a.CreatedAt, a.UpdatedAt)
+	if err == nil {
+		a.ActiveGeneration = 1
+		_ = s.SeedAgentGeneration(a.ID, a.Persona)
+	}
 	return a, err
 }
 
 func (s *Store) GetAgent(id string) (*Agent, error) {
 	a := &Agent{}
-	err := s.db.QueryRow(`SELECT id, project_id, slug, name, persona, evidence, created_at, updated_at
-		FROM agents WHERE id=?`, id).Scan(&a.ID, &a.ProjectID, &a.Slug, &a.Name, &a.Persona, &a.Evidence, &a.CreatedAt, &a.UpdatedAt)
+	err := s.db.QueryRow(`SELECT id, project_id, slug, name, persona, evidence, created_at, updated_at, COALESCE(active_generation,1)
+		FROM agents WHERE id=?`, id).Scan(&a.ID, &a.ProjectID, &a.Slug, &a.Name, &a.Persona, &a.Evidence, &a.CreatedAt, &a.UpdatedAt, &a.ActiveGeneration)
 	return a, err
 }
 
 func (s *Store) ListAgents(projectID string) ([]*Agent, error) {
-	rows, err := s.db.Query(`SELECT id, project_id, slug, name, persona, evidence, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, project_id, slug, name, persona, evidence, created_at, updated_at, COALESCE(active_generation,1)
 		FROM agents WHERE project_id=? ORDER BY created_at`, projectID)
 	if err != nil {
 		return nil, err
@@ -53,7 +58,7 @@ func (s *Store) ListAgents(projectID string) ([]*Agent, error) {
 	out := []*Agent{}
 	for rows.Next() {
 		a := &Agent{}
-		if err := rows.Scan(&a.ID, &a.ProjectID, &a.Slug, &a.Name, &a.Persona, &a.Evidence, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.ProjectID, &a.Slug, &a.Name, &a.Persona, &a.Evidence, &a.CreatedAt, &a.UpdatedAt, &a.ActiveGeneration); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

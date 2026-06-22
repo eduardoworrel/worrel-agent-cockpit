@@ -155,6 +155,16 @@ CREATE TABLE IF NOT EXISTS agents (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agent_generations (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id       TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  generation     INTEGER NOT NULL,
+  persona        TEXT NOT NULL,
+  change_summary TEXT NOT NULL DEFAULT '',
+  evidence       TEXT NOT NULL DEFAULT '',
+  created_at     INTEGER NOT NULL,
+  UNIQUE (agent_id, generation)
+);
 CREATE TABLE IF NOT EXISTS engine_config (
   engine_id  TEXT NOT NULL,
   scope_key  TEXT NOT NULL,            -- '' = global; senão project_id

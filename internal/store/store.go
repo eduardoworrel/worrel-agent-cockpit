@@ -94,6 +94,8 @@ func migrateAddColumns(db *sql.DB) error {
 			`ALTER TABLE transcript_events ADD COLUMN payload TEXT NOT NULL DEFAULT ''`},
 		{"skills", "structured",
 			`ALTER TABLE skills ADD COLUMN structured TEXT NOT NULL DEFAULT ''`},
+		{"agents", "active_generation",
+			`ALTER TABLE agents ADD COLUMN active_generation INTEGER NOT NULL DEFAULT 1`},
 	}
 	for _, w := range wanted {
 		var n int
