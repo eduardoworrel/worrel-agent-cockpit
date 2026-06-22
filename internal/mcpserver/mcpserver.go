@@ -61,6 +61,7 @@ func (svc *Service) ServerFor(token string) *mcp.Server {
 	svc.addSessionTools(srv, a)
 	svc.addSecretTools(srv, a)
 	svc.addAskTools(srv, a)
+	svc.addMarkAsSkillTools(srv, a)
 	return srv
 }
 
