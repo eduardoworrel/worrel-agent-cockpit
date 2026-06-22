@@ -83,6 +83,9 @@ func (s *Server) attachEngineSummary(snap *agui.Snapshot) {
 	if s.deps.Summarizer == nil {
 		return
 	}
+	if s.deps.Store != nil && !s.deps.Store.EngineEnabled("summary", snap.SessionID, false) {
+		return
+	}
 	id := snap.SessionID
 	// usa os eventos narrados em cache no card (em vez das mensagens cruas).
 	if lines, _ := s.titles.get(id); len(lines) > 0 {
@@ -136,6 +139,10 @@ func (s *Server) attachProgress(snap *agui.Snapshot, events []*store.TranscriptE
 	snap.Progress = lines
 
 	if s.deps.Summarizer == nil || snap.State == agui.StateEnded {
+		return
+	}
+	// toggle de custo: resumo desligado (global ou por-sessão) → não chama IA.
+	if s.deps.Store != nil && !s.deps.Store.EngineEnabled("summary", snap.SessionID, false) {
 		return
 	}
 	if !s.progress.claim(snap.SessionID, len(events)) {

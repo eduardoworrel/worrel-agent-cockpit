@@ -85,6 +85,8 @@ func TestAttachProgress_LogsAudit(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer st.Close()
+	// Plano 3: o resumo agora é gated por EngineEnabled (default OFF); liga aqui.
+	_ = st.SetEngineConfig("summary", "__enabled", "true", "")
 	srv := &Server{deps: Deps{
 		Bus:        bus.New(),
 		Store:      st,
@@ -114,6 +116,34 @@ func TestAttachProgress_LogsAudit(t *testing.T) {
 	if got[0].EngineID != "summary" || got[0].SessionID != "s1" ||
 		got[0].Input == "" || got[0].Output == "" {
 		t.Fatalf("auditoria incompleta: %+v", got[0])
+	}
+}
+
+func TestAttachProgress_DisabledSkipsLLM(t *testing.T) {
+	st, _ := store.Open(t.TempDir() + "/t.db")
+	defer st.Close()
+	// summary OFF global (default já é false, mas fixamos explícito):
+	_ = st.SetEngineConfig("summary", "__enabled", "false", "")
+
+	sum := &fakeHeadless{out: `{"title":"X","lines":["y"]}`}
+	srv := &Server{deps: Deps{Bus: bus.New(), Store: st, Summarizer: sum}, progress: newProgressCache()}
+
+	snap := &agui.Snapshot{SessionID: "s1", State: agui.StateAwaiting}
+	events := []*store.TranscriptEvent{
+		{Role: "user", Kind: "text", Content: "oi"},
+		{Role: "assistant", Kind: "text", Content: "a"},
+		{Role: "assistant", Kind: "text", Content: "b"},
+	}
+	srv.attachProgress(snap, events)
+
+	// dá tempo de uma eventual goroutine indevida rodar
+	time.Sleep(50 * time.Millisecond)
+	got, _ := st.ListEngineLog(10)
+	if len(got) != 0 {
+		t.Fatalf("summary OFF não deveria gerar auditoria/chamada; veio %d", len(got))
+	}
+	if c := atomic.LoadInt32(&sum.calls); c != 0 {
+		t.Fatalf("summary OFF não deveria chamar o LLM; veio %d", c)
 	}
 }
 
