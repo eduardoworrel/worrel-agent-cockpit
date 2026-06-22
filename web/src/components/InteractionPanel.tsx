@@ -26,7 +26,7 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
   async function act(fn: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
-    try { await fn(); setText(''); onActed(); } catch { /* já resolvido/encerrado */ }
+    try { await fn(); setText(''); onActed(); onClose(); } catch { /* já resolvido/encerrado */ }
     finally { setBusy(false); }
   }
 
@@ -87,6 +87,8 @@ export default function InteractionPanel({ snapshot, onActed, onClose }: Props) 
             <button className="btn btn-primary btn-sm" type="submit" disabled={busy || !text.trim()}>{t('home.ix.send')}</button>
           </form>
         </>
+      ) : state === 'working' ? (
+        <div className="ixp-thinking">{t('home.ix.working')}<span className="dots"><i /><i /><i /></span></div>
       ) : state === 'ended' ? (
         <p className="ixp-muted">{t('home.ix.ended')}</p>
       ) : (

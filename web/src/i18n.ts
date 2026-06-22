@@ -52,6 +52,11 @@ i18next
               promptPlaceholder: 'what are we doing?',
               start: 'start',
               startTerminal: 'Start and open the terminal',
+              permMode: 'Permission mode',
+              permModeHint: 'How the agent handles tool permissions',
+              permAuto: 'auto-mode',
+              permAsk: 'ask always',
+              permYolo: 'no asking',
             },
             ix: {
               title: 'Session interaction',
@@ -571,6 +576,11 @@ i18next
               promptPlaceholder: 'o que vamos fazer?',
               start: 'começar',
               startTerminal: 'Começar e abrir o terminal',
+              permMode: 'Modo de permissão',
+              permModeHint: 'Como o agente trata permissões de ferramenta',
+              permAuto: 'auto-mode',
+              permAsk: 'perguntar sempre',
+              permYolo: 'sem perguntar',
             },
             ix: {
               title: 'Interação da sessão',

@@ -1840,3 +1840,20 @@ tr:last-child td { border-bottom: none; }
 .onb-style-art { width: 80px; height: 54px; border: 1.5px solid var(--line-strong); border-radius: 6px; position: relative; background: var(--surface-sunk); margin-bottom: 4px; }
 .onb-style-modal i { position: absolute; inset: 14px 20px; background: var(--orange); border-radius: 3px; }
 .onb-style-drawer i { position: absolute; top: 4px; right: 4px; bottom: 4px; width: 34%; background: var(--orange); border-radius: 3px; }
+
+/* seletor de modo de permissão na chrome do wizard */
+.nsw-mode-select select {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+  background: transparent; border: 1px solid var(--line-strong); border-radius: var(--r-pill);
+  padding: 2px 8px; cursor: pointer; margin-left: 6px;
+}
+.nsw-mode-select select:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* indicador "pensando" do agente */
+.ixp-thinking { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; padding: 6px 0; }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); animation: dot-pulse 1.2s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: .2s; }
+.dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot-pulse { 0%, 80%, 100% { opacity: .25; transform: scale(.8); } 40% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .dots i { animation: none; opacity: .6; } }

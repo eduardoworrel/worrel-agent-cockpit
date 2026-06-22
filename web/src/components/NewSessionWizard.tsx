@@ -4,7 +4,7 @@ import {
   listProjects, listAdapters, listSkills, listAgents,
   createEngineSession, sendPrompt,
 } from '../api';
-import type { Project, DetectedAdapter, Skill, Agent, Session } from '../api';
+import type { Project, DetectedAdapter, Skill, Agent, Session, PermissionMode } from '../api';
 
 interface Props {
   // openTerminal=true abre o terminal da sessão; false fica na Home (o terminal
@@ -46,6 +46,7 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
   const [projectId, setProjectId] = useState<string | null | undefined>(undefined);
   const [mode, setMode] = useState<Mode>('on-demand');
   const [adapterId, setAdapterId] = useState('');
+  const [permMode, setPermMode] = useState<PermissionMode>('auto');
   // seed: a semente da sessão — nada, uma skill ou um agent.
   const [seed, setSeed] = useState<{ kind: 'skill' | 'agent'; id: string } | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -91,7 +92,7 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
     try {
       // Toda sessão é dirigida pelo motor stream-json (auto-mode). openTerminal
       // só decide a navegação: ficar na Home (miniatura) ou abrir a conversa.
-      const sess = await createEngineSession(projectId ?? undefined);
+      const sess = await createEngineSession(projectId ?? undefined, permMode);
       if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
       onCreated(sess, openTerminal);
     } catch (err) {
@@ -112,7 +113,14 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
         {/* Window-chrome: ambiente da sessão (modo + provider). */}
         <div className="nsw-chrome">
           <span className="nsw-dots" aria-hidden="true"><i /><i /><i /></span>
-          <span className="nsw-mode-tag">{t('home.autoMode')}</span>
+          <label className="nsw-mode-select" title={t('home.wizard.permModeHint')}>
+            <select value={permMode} onChange={(e) => setPermMode(e.target.value as PermissionMode)}
+              aria-label={t('home.wizard.permMode')}>
+              <option value="auto">{t('home.wizard.permAuto')}</option>
+              <option value="default">{t('home.wizard.permAsk')}</option>
+              <option value="bypassPermissions">{t('home.wizard.permYolo')}</option>
+            </select>
+          </label>
           <label className="nsw-provider">
             <select value={adapterId} onChange={(e) => setAdapterId(e.target.value)}
               aria-label={t('home.wizard.provider')}>

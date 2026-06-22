@@ -65,6 +65,10 @@ func claudeArgs(mode PermissionMode) []string {
 		"--verbose",
 		"--permission-prompt-tool", "stdio",
 		"--permission-mode", mode,
+		// AskUserQuestion espera uma UI interativa do CLI; no nosso fluxo ela
+		// vira um "Permitir AskUserQuestion?" feio. Proibimos para o agente
+		// FALAR a pergunta — que a interpretação por IA renderiza em opções.
+		"--disallowedTools", "AskUserQuestion",
 	}
 }
 

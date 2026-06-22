@@ -529,12 +529,16 @@ export interface InteractionSnapshot {
   interrupt?: Interrupt;   // pergunta bloqueante pendente
 }
 
+// PermissionMode: como o CC trata permissões. 'auto' = o agente decide (pede só
+// quando precisa); 'default' = pergunta toda ferramenta; 'bypassPermissions' = nunca.
+export type PermissionMode = 'auto' | 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
 // createEngineSession cria uma sessão dirigida pelo motor stream-json (sem PTY):
-// a Home a gerencia 100% pelo canal AG-UI.
-export function createEngineSession(projectId?: string): Promise<Session> {
+// a Home a gerencia 100% pelo canal AG-UI. mode = modo de permissão do CC.
+export function createEngineSession(projectId?: string, mode?: PermissionMode): Promise<Session> {
   return req('/sessions/engine', {
     method: 'POST',
-    body: JSON.stringify({ project_id: projectId ?? '' }),
+    body: JSON.stringify({ project_id: projectId ?? '', mode: mode ?? 'auto' }),
   });
 }
 
