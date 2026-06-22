@@ -13,8 +13,6 @@ import {
   listSkills,
   createSkill,
   updateSkill,
-  listSessions,
-  archiveSession,
   listSuggestions,
   acceptSuggestion,
   rejectSuggestion,
@@ -25,10 +23,8 @@ import {
   setProjectSkillsPolicy,
   exportSkill,
   importSkill,
-  postHandoff,
-  killSession,
 } from '../api';
-import type { Project as ProjectType, MemoryVersion, MemoryEntry, Agent, Skill, Session, Suggestion, DetectedAdapter, SkillStats } from '../api';
+import type { Project as ProjectType, MemoryVersion, MemoryEntry, Agent, Skill, Suggestion, DetectedAdapter, SkillStats } from '../api';
 import SecretsTab from '../components/SecretsTab';
 import SkillHealth from '../components/SkillHealth';
 import Lineage from '../components/Lineage';
@@ -52,7 +48,7 @@ export default function Project() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [project, setProject] = useState<ProjectType | null>(null);
-  const [tab, setTab] = useState<Tab>('sessions');
+  const [tab, setTab] = useState<Tab>('memory');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,10 +72,6 @@ export default function Project() {
   const [bulkPolicy, setBulkPolicy] = useState('manual');
 
   // Sessions
-  const [sessions, setSessions] = useState<Session[]>([]);
-  // Sessão alvo do modal de confirmação de arquivamento (null = fechado).
-  const [archiveTarget, setArchiveTarget] = useState<Session | null>(null);
-  const [killTarget, setKillTarget] = useState<Session | null>(null);
   const [adapters, setAdapters] = useState<DetectedAdapter[]>([]);
   const [showNewSession, setShowNewSession] = useState(false);
   // Quando preenchido, o NewSessionModal injeta este conteúdo (skill/pipeline) no primer.
@@ -97,14 +89,13 @@ export default function Project() {
     async function loadAll(projectId: string) {
       setLoading(true);
       try {
-        const [proj, mem, vers, entries, ags, sk, sess, sugs, adps] = await Promise.all([
+        const [proj, mem, vers, entries, ags, sk, sugs, adps] = await Promise.all([
           getProject(projectId),
           getMemory(projectId).catch(() => null),
           listMemoryVersions(projectId).catch(() => [] as MemoryVersion[]),
           listMemoryEntries(projectId).catch(() => [] as MemoryEntry[]),
           listAgents(projectId).catch(() => [] as Agent[]),
           listSkills(projectId),
-          listSessions(projectId),
           listSuggestions(projectId, 'pending'),
           listAdapters().catch(() => [] as DetectedAdapter[]),
         ]);
@@ -116,7 +107,6 @@ export default function Project() {
         setAgents(ags);
         setSkills(sk);
         void loadSkillStats(sk);
-        setSessions(sess);
         setSuggestions(sugs);
         const present = adps.filter((a) => a.installed.present);
         setAdapters(present);
@@ -294,34 +284,6 @@ export default function Project() {
     });
   }
 
-  // Retomar: cria uma nova sessão encadeada (handoff) que herda o contexto/resumo
-  // da sessão escolhida e abre o terminal dela. Funciona para encerradas e órfãs.
-  function handleResume(sessionId: string) {
-    return run(async () => {
-      const r = await postHandoff(sessionId);
-      navigate(`/sessions/${r.new_id}`);
-    });
-  }
-
-  // Arquiva a sessão (só após confirmação): some do histórico sem ser apagada.
-  function handleArchive(sessionId: string) {
-    return run(async () => {
-      await archiveSession(sessionId);
-      setArchiveTarget(null);
-      if (id) setSessions(await listSessions(id));
-    });
-  }
-
-  // Encerra a sessão em andamento (só após confirmação): mata o processo do
-  // agente; a sessão passa a 'ended' e ganha as ações de histórico na mesma linha.
-  function handleKill(sessionId: string) {
-    return run(async () => {
-      await killSession(sessionId);
-      setKillTarget(null);
-      if (id) setSessions(await listSessions(id));
-    });
-  }
-
   // Abre o modal de sessão já com o conteúdo da skill para injeção no primer.
   function openSkillSession(content: string, label: string) {
     setSessionSkill({ content, label });
@@ -339,13 +301,6 @@ export default function Project() {
           <h1 style={{ marginTop: 6 }}>{project.name}</h1>
           {project.description && <p className="sub">{project.description}</p>}
         </div>
-        {adapters.length > 0 && (
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" disabled={busy} onClick={() => { setSessionSkill(null); setShowNewSession(true); }}>
-              {t('sessions.new')}
-            </button>
-          </div>
-        )}
       </div>
 
       {error && <p className="error-banner">{t('common.actionFailed')}</p>}
@@ -361,7 +316,7 @@ export default function Project() {
       )}
 
       <div className="tabs">
-        {(['sessions', 'memory', 'skills', 'suggestions', 'secrets'] as Tab[]).map((tabName) => (
+        {(['memory', 'skills', 'suggestions', 'secrets'] as Tab[]).map((tabName) => (
           <button
             key={tabName}
             className={`tab${tab === tabName ? ' active' : ''}`}
@@ -581,166 +536,6 @@ export default function Project() {
               </div>
             ))
           )}
-        </div>
-      )}
-
-      {tab === 'sessions' && (
-        <div>
-          {sessions.length === 0 ? (
-            <p style={{ color: 'var(--muted)' }}>{t('sessions.noSessions')}</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('sessions.adapter')}</th>
-                  <th>{t('sessions.mode')}</th>
-                  <th>{t('sessions.status')}</th>
-                  <th>{t('sessions.started')}</th>
-                  <th>{t('sessions.summary')}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => {
-                  // Compute continuedBy from the loaded list (inverse of continues)
-                  const continuedBy = sessions.find((other) => other.continues === s.id);
-                  return (
-                  <tr key={s.id} className="session-row">
-                    <td>{s.adapter}</td>
-                    <td>{s.mode}</td>
-                    <td>
-                      {s.status}
-                      {s.continues && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--muted)' }}>
-                          <Link to={`/sessions/${s.continues}`}>{t('sessions.continuesBadge', { id: s.continues.slice(0, 8) })}</Link>
-                        </span>
-                      )}
-                      {continuedBy && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--muted)' }}>
-                          <Link to={`/sessions/${continuedBy.id}`}>{t('sessions.continuedByBadge', { id: continuedBy.id.slice(0, 8) })}</Link>
-                        </span>
-                      )}
-                    </td>
-                    <td>{new Date(s.started_at).toLocaleString()}</td>
-                    <td>
-                      {s.transcript_pruned
-                        ? <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>{t('sessions.transcriptExpired')}</span>
-                        : s.summary}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                        {s.status === 'active' ? (
-                          <>
-                            <Link to={`/sessions/${s.id}`} className="btn btn-secondary" style={{ fontSize: '0.8rem' }}>
-                              {t('sessions.openTerminal')}
-                            </Link>
-                            <button
-                              className="btn btn-secondary"
-                              style={{ fontSize: '0.8rem' }}
-                              disabled={busy}
-                              title={t('sessions.endHint', 'Encerra o processo do agente desta sessão') as string}
-                              onClick={() => setKillTarget(s)}
-                            >
-                              ⨯ {t('sessions.end', 'Encerrar')}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              className="btn btn-primary"
-                              style={{ fontSize: '0.8rem' }}
-                              disabled={busy}
-                              title={t('sessions.resumeHint') as string}
-                              onClick={() => handleResume(s.id)}
-                            >
-                              ↻ {t('sessions.resume')}
-                            </button>
-                            <button
-                              className="btn btn-secondary row-archive"
-                              style={{ fontSize: '0.8rem' }}
-                              disabled={busy}
-                              aria-label={t('sessions.archive') as string}
-                              title={t('sessions.archive') as string}
-                              onClick={() => setArchiveTarget(s)}
-                            >
-                              🗄 {t('sessions.archive')}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {archiveTarget && (
-        <div className="modal-overlay" onClick={() => !busy && setArchiveTarget(null)}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="archive-confirm-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="archive-confirm-title" style={{ marginTop: 0 }}>{t('sessions.archiveConfirmTitle')}</h3>
-            <p>{t('sessions.archiveConfirmMsg')}</p>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-              <button
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-                disabled={busy}
-                onClick={() => setArchiveTarget(null)}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-                disabled={busy}
-                onClick={() => handleArchive(archiveTarget.id)}
-              >
-                {t('sessions.archive')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {killTarget && (
-        <div className="modal-overlay" onClick={() => !busy && setKillTarget(null)}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="kill-confirm-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="kill-confirm-title" style={{ marginTop: 0 }}>{t('sessions.endConfirmTitle', 'Encerrar sessão em andamento?')}</h3>
-            <p>{t('sessions.endConfirmMsg', 'O processo do agente será finalizado. A sessão fica no histórico e pode ser recomeçada depois.')}</p>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-              <button
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-                disabled={busy}
-                onClick={() => setKillTarget(null)}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-                disabled={busy}
-                onClick={() => handleKill(killTarget.id)}
-              >
-                {t('sessions.end', 'Encerrar')}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
