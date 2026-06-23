@@ -3,11 +3,17 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/agui"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/ask"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/mirror"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/wrapper"
 )
 
 // TestInteractionSnapshot cobre a borda HTTP do canal AG-UI: cria uma sessão com
@@ -41,6 +47,51 @@ func TestInteractionSnapshot(t *testing.T) {
 	// PTY não está rodando neste teste → sessão considerada encerrada.
 	if snap.State != agui.StateEnded {
 		t.Fatalf("state = %q, want ended (sem PTY vivo)", snap.State)
+	}
+}
+
+// TestInteractionAskSurfacesAndResolves cobre a regressão do modal de resposta:
+// um ask pendente no broker (hook PreToolUse / MCP ask_user) deve (1) aparecer
+// como interrupt no snapshot da sessão e (2) ser resolvido pelo respond via
+// request_id. Guarda o caminho "broker primeiro" do handleInteractionRespond.
+func TestInteractionAskSurfacesAndResolves(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.Open(dir + "/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetDataDir(dir)
+	t.Cleanup(func() { s.Close() })
+	m := mirror.New(t.TempDir())
+	bs := bus.New()
+	wm := wrapper.New(s, bs)
+	b := ask.New()
+	srv := New(Deps{Store: s, Mirror: m, Bus: bs, Applier: apply.New(s, m, bs), Wrapper: wm, Ask: b})
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	sess, _ := s.CreateSession(&store.Session{Adapter: "claude-code", Mode: "wrapper"})
+	req, _ := b.Open(ask.Request{SessionID: sess.ID, Kind: "permission", Title: "Rodar comando", Detail: "echo oi"})
+
+	// (1) snapshot expõe o ask como interrupt.
+	resp := doJSON(t, ts, "GET", "/api/sessions/"+sess.ID+"/interaction", nil)
+	var snap agui.Snapshot
+	json.NewDecoder(resp.Body).Decode(&snap)
+	if snap.Interrupt == nil || snap.Interrupt.RequestID != req.ID {
+		t.Fatalf("interrupt = %+v, want request_id %s", snap.Interrupt, req.ID)
+	}
+	if snap.Interrupt.Kind != agui.KindPermission {
+		t.Fatalf("kind = %q, want permission", snap.Interrupt.Kind)
+	}
+
+	// (2) respond resolve o ask pelo broker → 204 e some de pending.
+	resp = doJSON(t, ts, "POST", "/api/sessions/"+sess.ID+"/interaction/respond",
+		map[string]any{"request_id": req.ID, "answer": "allow"})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("respond = %d, want 204", resp.StatusCode)
+	}
+	if len(b.Pending()) != 0 {
+		t.Fatalf("pending após respond = %d, want 0", len(b.Pending()))
 	}
 }
 

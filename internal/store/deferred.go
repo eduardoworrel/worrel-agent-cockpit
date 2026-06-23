@@ -30,9 +30,12 @@ func (s *Store) ClearSessionDeferred(sessionID string) error {
 // ListDeferredSessions devolve as sessões adiadas, mais recentes primeiro.
 // O sidebar mostra só as 5 primeiras; aqui não cortamos (cabe ao chamador).
 func (s *Store) ListDeferredSessions() ([]DeferredSession, error) {
+	// Desempate por rowid DESC: deferred_at é em ms (now()), então dois "adiar"
+	// no mesmo milissegundo empatariam e a ordem ficaria indefinida. O rowid
+	// cresce com a criação, então o desempate favorece a sessão mais recente.
 	rows, err := s.db.Query(`SELECT id, COALESCE(project_id,''), deferred_at
 		FROM sessions WHERE deferred_at IS NOT NULL AND status != 'archived'
-		ORDER BY deferred_at DESC`)
+		ORDER BY deferred_at DESC, rowid DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +46,17 @@ func (s *Store) ListDeferredSessions() ([]DeferredSession, error) {
 		if err := rows.Scan(&d.SessionID, &d.ProjectID, &d.DeferredAt); err != nil {
 			return nil, err
 		}
-		d.Label = s.SessionLabel(d.SessionID)
 		out = append(out, d)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// SessionLabel faz outra query; com pool de 1 conexão (SetMaxOpenConns(1)),
+	// chamá-la com o cursor ainda aberto trava (deadlock). Resolvemos os rótulos
+	// só depois de drenar e fechar o cursor.
+	rows.Close()
+	for i := range out {
+		out[i].Label = s.SessionLabel(out[i].SessionID)
+	}
+	return out, nil
 }

@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Session, InteractionSnapshot } from '../api';
 import { sessionName } from '../session';
-import InteractionPanel from './InteractionPanel';
-import ResponderShell from './ResponderShell';
+import { sessionStatus } from '../sessionStatus';
 
 interface Props {
   session: Session;
@@ -16,6 +15,8 @@ interface Props {
   suggestions: number;
   // Chamado após responder/enviar no painel → Home re-busca os snapshots.
   onActed: () => void;
+  // Abre o modal global de interação desta sessão (clique no ⚠️).
+  onOpen: () => void;
   // Toggle de custo do resumo de IA desta miniatura (Plano 3).
   summaryEnabled: boolean;
   onToggleSummary: (enabled: boolean) => void;
@@ -74,11 +75,15 @@ function timelineLines(s: Session, snapshot: InteractionSnapshot | undefined, aw
 
 // TerminalCard é o card da Home: uma sessão "ao vivo" resumida em linhas
 // simples, com o ⚠️ que abre o canal de interação (responder/mandar prompt).
-export default function TerminalCard({ session, snapshot, awaiting, suggestions, onActed, summaryEnabled, onToggleSummary }: Props) {
+export default function TerminalCard({ session, snapshot, awaiting, suggestions, onOpen, summaryEnabled, onToggleSummary }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
   const goTerminal = () => navigate(`/sessions/${session.id}`);
+
+  // Sessão clássica: terminal puro (PTY/CLI real), sem o motor de eventos. Não
+  // tem snapshot AG-UI (resumo por IA, interrupts, timeline narrada), então o
+  // card se reduz ao essencial: título, dica e o botão de abrir o terminal.
+  const classic = session.adapter !== 'engine';
 
   // A IA espera você quando há interrupt pendente OU o estado é "awaiting".
   const awaitsYou = snapshot
@@ -104,52 +109,66 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
   // Precisa de atenção: a IA espera você E você ainda não viu este pedido.
   const needsAttention = awaitsYou && attentionSig !== seenSig;
 
-  // Estado ao vivo para o farol da barra: em andamento / esperando você / parada.
-  const liveState: 'working' | 'awaiting' | 'ended' =
-    snapshot?.state ?? (awaiting ? 'awaiting' : 'working');
-  const stateLabel = t(`home.ix.state.${liveState}`);
+  // Farol de estado: derivação ÚNICA compartilhada com a bolinha da sidebar
+  // (ver sessionStatus) — em andamento / esperando você / parada / clássica.
+  const status = sessionStatus({ snapshot, awaiting, classic });
+  const stateLabel = classic ? t('home.classicBadge') : t(`home.ix.state.${status}`);
 
   return (
-    <div className={`tcard${needsAttention ? ' needs-attention' : ''}`}>
+    <div className={`tcard${classic ? ' tcard-classic' : ''}${!classic && needsAttention ? ' needs-attention' : ''}`}>
       <div className="tcard-titlebar" onClick={goTerminal} role="button" tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter') goTerminal(); }}>
-        {/* Farol de estado: verde pulsante = em andamento; âmbar = esperando você; cinza = parada. */}
-        <span className="tcard-status" data-state={liveState} title={stateLabel} role="img" aria-label={stateLabel} />
+        {/* Farol de estado: verde pulsante = em andamento; âmbar = esperando você; cinza = parada.
+            Clássico não tem motor → farol neutro. */}
+        <span className="tcard-status" data-state={status}
+          title={stateLabel} role="img" aria-label={stateLabel} />
         <span className="tcard-dots" aria-hidden="true"><i /><i /><i /></span>
         {/* Título da sessão: reflete o que está acontecendo e é atualizado com frequência. */}
         <span className="tcard-mode" title={sessionName(session)}>{sessionName(session)}</span>
-        {/* Switch de resumo por IA (custa créditos) — ocupa o lugar antes usado pela badge do adapter. */}
-        <label className="tcard-ai-switch" title={t('home.summaryToggle', 'Resumo por IA (custa créditos)')}
-          onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={summaryEnabled}
-            onChange={(e) => onToggleSummary(e.target.checked)}
-          />
-          <span className="tcard-ai-switch-track" aria-hidden="true">
-            <span className="tcard-ai-switch-thumb" />
-          </span>
-          <span className="tcard-ai-switch-label">IA</span>
-        </label>
+        {classic ? (
+          // Clássico: sem switch de resumo por IA (recurso do motor). Badge no lugar.
+          <span className="tcard-classic-badge">{t('home.classicBadge')}</span>
+        ) : (
+          // Switch de resumo por IA (custa créditos) — ocupa o lugar antes usado pela badge do adapter.
+          <label className="tcard-ai-switch" title={t('home.summaryToggle', 'Resumo por IA (custa créditos)')}
+            onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={summaryEnabled}
+              onChange={(e) => onToggleSummary(e.target.checked)}
+            />
+            <span className="tcard-ai-switch-track" aria-hidden="true">
+              <span className="tcard-ai-switch-thumb" />
+            </span>
+            <span className="tcard-ai-switch-label">IA</span>
+          </label>
+        )}
       </div>
 
       <div className="tcard-body">
-        <ol className="tcard-timeline">
-          {lines.map((line, i) => (
-            <li key={i} data-kind={line.kind}>{line.text}</li>
-          ))}
-        </ol>
+        {classic ? (
+          <p className="tcard-classic-hint">{t('home.classicHint')}</p>
+        ) : (
+          <ol className="tcard-timeline">
+            {lines.map((line, i) => (
+              <li key={i} data-kind={line.kind}>{line.text}</li>
+            ))}
+          </ol>
+        )}
       </div>
 
       <div className="tcard-foot">
-        <button
-          className={`tcard-alert${needsAttention ? ' on' : ''}`}
-          title={needsAttention ? t('home.ix.open') : ''}
-          disabled={!snapshot}
-          onClick={() => { markSeen(); setOpen(true); }}
-        >
-          ⚠️
-        </button>
+        {/* Clássico não tem canal AG-UI → sem ⚠️ de interação. */}
+        {!classic && (
+          <button
+            className={`tcard-alert${needsAttention ? ' on' : ''}`}
+            title={needsAttention ? t('home.ix.open') : ''}
+            disabled={!snapshot}
+            onClick={() => { markSeen(); onOpen(); }}
+          >
+            ⚠️
+          </button>
+        )}
         <button className="tcard-send" aria-label={t('home.open')} onClick={goTerminal}>
           ➤
         </button>
@@ -159,13 +178,6 @@ export default function TerminalCard({ session, snapshot, awaiting, suggestions,
           </span>
         )}
       </div>
-
-      {open && snapshot && (
-        <ResponderShell onClose={() => setOpen(false)}>
-          <InteractionPanel snapshot={snapshot} onActed={onActed} onClose={() => setOpen(false)}
-            onOpenChat={() => { setOpen(false); navigate(`/sessions/${session.id}`); }} />
-        </ResponderShell>
-      )}
     </div>
   );
 }

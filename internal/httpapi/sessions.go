@@ -70,8 +70,8 @@ func (s *Server) spawnFor(w http.ResponseWriter, sess *store.Session, adapterID,
 		writeErr(w, 500, err.Error())
 		return
 	}
-	// SpawnWithAdapter liga o tracker de contexto (session.context /
-	// session.context_high) à sessão. Para claude-code o external ref é o
+	// SpawnWithAdapter liga o tracker de contexto (session.context) à
+	// sessão. Para claude-code o external ref é o
 	// próprio sess.ID (BuildInteractive passa --session-id sess.ID).
 	ref := adapter.SessionRef{Adapter: adapterID, ExternalRef: sess.ID}
 	if err := s.deps.Wrapper.SpawnWithAdapter(sess.ID, spec, ad, ref); err != nil {

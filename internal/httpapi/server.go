@@ -29,8 +29,6 @@ type Deps struct {
 	Adapters  *adapter.Registry
 	Port      int             // porta de escuta, p/ montar a URL MCP por sessão
 	Vault     *vault.Vault
-	Handoff   SummaryGeneratorIface // optional; nil = handoff indisponível
-	Spawner   Spawner               // optional; nil = handoff indisponível
 	Ask       *ask.Broker           // pedidos de confirmação/escolha (balões); nil = indisponível
 	Engines *engine.Registry // framework de motores (SP1); nil = indisponível
 	Summarizer HeadlessLLM    // LLM headless p/ resumo de progresso da Home; nil = indisponível
@@ -75,7 +73,6 @@ func (s *Server) routes() {
 	s.routesInteraction()
 	s.routesModels()
 	s.routesSecrets()
-	s.routesHandoff()
 	s.routesPipelines()
 	s.routesAsks()
 	s.routesReset()

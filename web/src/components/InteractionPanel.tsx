@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { respondInteraction, sendPrompt } from '../api';
+import { respondInteraction, sendPrompt, deferSession } from '../api';
 import type { InteractionSnapshot } from '../api';
 import { useDraft } from '../useDraft';
 
@@ -55,6 +55,15 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
     finally { setBusy(false); }
   }
 
+  // Adiar: fecha o modal sem responder e marca a sessão como adiada no backend
+  // (vira bolinha no sidebar). Não limpa o rascunho — a resposta fica pendente.
+  async function doDefer() {
+    if (busy) return;
+    setBusy(true);
+    try { await deferSession(id); onClose(); } catch { /* já resolvido/encerrado */ }
+    finally { setBusy(false); }
+  }
+
   const permit = (allow: boolean) =>
     act(() => respondInteraction(id, interrupt!.request_id, allow ? 'allow' : 'deny'));
   const reply = (value: string) => act(() => sendPrompt(id, value));
@@ -74,6 +83,9 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
         <span className="ixp-state" data-state={state}>{t(`home.ix.state.${state}`)}</span>
         {onOpenChat && (
           <button className="ixp-open-chat" onClick={onOpenChat}>{t('home.ix.openChat')} →</button>
+        )}
+        {awaitsYou && (
+          <button className="ixp-defer" disabled={busy} onClick={doDefer}>{t('home.ix.defer', 'Adiar')}</button>
         )}
         <button className="ixp-close" onClick={onClose} aria-label={t('common.cancel')}>✕</button>
       </div>

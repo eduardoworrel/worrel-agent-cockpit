@@ -108,15 +108,22 @@ func firstInterrupt(sessionID string, pending []ask.Request) *Interrupt {
 		if r.SessionID != sessionID {
 			continue
 		}
-		return &Interrupt{
-			RequestID: r.ID,
-			Kind:      interruptKind(r),
-			Prompt:    r.Title,
-			Detail:    r.Detail,
-			Options:   r.Options,
-		}
+		return InterruptFromAsk(r)
 	}
 	return nil
+}
+
+// InterruptFromAsk mapeia um ask pendente do broker para um Interrupt AG-UI.
+// Exposto para que a borda HTTP anexe asks de broker (ex.: MCP ask_user) a
+// snapshots do motor, que não passam pelo Build do transcript.
+func InterruptFromAsk(r ask.Request) *Interrupt {
+	return &Interrupt{
+		RequestID: r.ID,
+		Kind:      interruptKind(r),
+		Prompt:    r.Title,
+		Detail:    r.Detail,
+		Options:   r.Options,
+	}
 }
 
 // interruptKind classifica como o usuário responde: permission (allow/deny),

@@ -237,9 +237,6 @@ func TestTrackContextPublishesEvents(t *testing.T) {
 	p, _ := st.CreateProject("App", "")
 	sess, _ := st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "fake-ctx", Mode: "wrapper"})
 
-	// Threshold 80, context 81/100 → deve emitir session.context e session.context_high
-	_ = st.SetSetting("handoff_threshold_pct", "80")
-
 	ca := &contextAdapter{used: 81, limit: 100}
 	ref := adapter.SessionRef{Adapter: "fake-ctx"}
 
@@ -247,14 +244,10 @@ func TestTrackContextPublishesEvents(t *testing.T) {
 	defer cancel()
 
 	contextEvents := make(chan bus.Event, 10)
-	highEvents := make(chan bus.Event, 10)
 	go func() {
 		for e := range allEvents {
 			if e.Type == "session.context" {
 				contextEvents <- e
-			}
-			if e.Type == "session.context_high" {
-				highEvents <- e
 			}
 		}
 	}()
@@ -265,20 +258,6 @@ func TestTrackContextPublishesEvents(t *testing.T) {
 	case <-contextEvents:
 	case <-time.After(time.Second):
 		t.Fatal("session.context não publicado")
-	}
-	select {
-	case <-highEvents:
-	case <-time.After(time.Second):
-		t.Fatal("session.context_high não publicado")
-	}
-
-	// Segunda chamada NÃO deve re-publicar session.context_high
-	m.trackContext(sess.ID, ref, ca)
-	select {
-	case <-highEvents:
-		t.Fatal("session.context_high publicado duas vezes")
-	case <-time.After(100 * time.Millisecond):
-		// ok — não re-publicou
 	}
 }
 

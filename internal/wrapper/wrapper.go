@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -51,16 +50,15 @@ type Manager struct {
 	store *store.Store
 	bus   *bus.Bus
 
-	mu           sync.Mutex
-	sessions     map[string]*session
-	highNotified map[string]bool // sessões que já receberam session.context_high
-	awaiting     map[string]bool // último estado "aguardando input" por sessão
-	titled       map[string]bool // sessões cujo título já foi derivado (para de pollar)
+	mu       sync.Mutex
+	sessions map[string]*session
+	awaiting map[string]bool // último estado "aguardando input" por sessão
+	titled   map[string]bool // sessões cujo título já foi derivado (para de pollar)
 }
 
 // New cria um Manager com store e bus fornecidos.
 func New(st *store.Store, b *bus.Bus) *Manager {
-	return &Manager{store: st, bus: b, sessions: map[string]*session{}, highNotified: map[string]bool{}, awaiting: map[string]bool{}, titled: map[string]bool{}}
+	return &Manager{store: st, bus: b, sessions: map[string]*session{}, awaiting: map[string]bool{}, titled: map[string]bool{}}
 }
 
 // Spawn inicia o CmdSpec num PTY e começa o loop de leitura.
@@ -158,7 +156,6 @@ func (m *Manager) onExit(s *session) {
 
 	m.mu.Lock()
 	delete(m.sessions, s.id)
-	delete(m.highNotified, s.id)
 	delete(m.awaiting, s.id)
 	delete(m.titled, s.id)
 	m.mu.Unlock()
@@ -354,17 +351,7 @@ func (m *Manager) IsRunning(sessionID string) bool {
 	return err == nil
 }
 
-// handoffThreshold lê o setting handoff_threshold_pct (default 80).
-func (m *Manager) handoffThreshold() int {
-	v := m.store.GetSetting("handoff_threshold_pct", "")
-	if n, err := strconv.Atoi(v); err == nil && n > 0 {
-		return n
-	}
-	return 80
-}
-
-// trackContext verifica uso de contexto do adaptador e publica eventos no bus.
-// Publica session.context_high no máximo uma vez por sessão (guarda em highNotified).
+// trackContext verifica uso de contexto do adaptador e publica session.context.
 func (m *Manager) trackContext(sessID string, ref adapter.SessionRef, ad adapter.Adapter) {
 	used, limit, ok := ad.ContextUsage(ref)
 	if !ok || limit <= 0 {
@@ -373,18 +360,6 @@ func (m *Manager) trackContext(sessID string, ref adapter.SessionRef, ad adapter
 	_ = m.store.UpdateSessionContext(sessID, int64(used), int64(limit))
 	m.bus.Publish(bus.Event{Type: "session.context",
 		Payload: map[string]any{"session_id": sessID, "used": used, "limit": limit}})
-
-	threshold := m.handoffThreshold()
-	m.mu.Lock()
-	alreadyNotified := m.highNotified[sessID]
-	m.mu.Unlock()
-	if used*100/limit >= threshold && !alreadyNotified {
-		m.mu.Lock()
-		m.highNotified[sessID] = true
-		m.mu.Unlock()
-		m.bus.Publish(bus.Event{Type: "session.context_high",
-			Payload: map[string]any{"session_id": sessID}})
-	}
 }
 
 // maxTitleLen limita o título derivado do primeiro recado do usuário.

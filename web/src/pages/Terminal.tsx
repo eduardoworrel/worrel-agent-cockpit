@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { killSession, postHandoff, pasteImage } from '../api';
+import { killSession, pasteImage } from '../api';
 import { useEvents } from '../useEvents';
 import '@xterm/xterm/css/xterm.css';
 
@@ -15,8 +15,6 @@ export default function Terminal() {
 
   const [contextUsed, setContextUsed] = useState(0);
   const [contextLimit, setContextLimit] = useState(0);
-  const [showHandoffBanner, setShowHandoffBanner] = useState(false);
-  const [handoffBusy, setHandoffBusy] = useState(false);
   const [killBusy, setKillBusy] = useState(false);
 
   const handleKill = async () => {
@@ -41,24 +39,7 @@ export default function Terminal() {
         setContextLimit(p.limit);
       }
     }
-    if (ev.type === 'session.context_high') {
-      const p = ev.payload as { session_id: string };
-      if (p.session_id === id) {
-        setShowHandoffBanner(true);
-      }
-    }
   });
-
-  const handleHandoff = async () => {
-    if (!id) return;
-    setHandoffBusy(true);
-    try {
-      const result = await postHandoff(id);
-      navigate(`/sessions/${result.new_id}`);
-    } catch {
-      setHandoffBusy(false);
-    }
-  };
 
   useEffect(() => {
     if (!ref.current || !id) return;
@@ -98,6 +79,12 @@ export default function Terminal() {
     term.loadAddon(fit);
     term.open(ref.current);
     fit.fit();
+    // Foca o textarea do xterm assim que o terminal monta, para que o usuário
+    // possa digitar sem clicar — inclusive ao selecionar uma sessão já aberta
+    // (a navegação remonta este componente). Usamos rAF para focar depois que
+    // o layout (header/banner) assenta; o foco no ws.onopen sozinho pode perder
+    // a corrida com a renderização.
+    requestAnimationFrame(() => term.focus());
 
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${proto}://${location.host}/api/sessions/${id}/term`);
@@ -201,22 +188,6 @@ export default function Terminal() {
           </span>
         )}
       </div>
-      {showHandoffBanner && (
-        <div style={{
-          padding: '10px 20px', background: 'var(--fill-amber)',
-          borderBottom: '1px solid var(--amber)',
-          display: 'flex', gap: 12, alignItems: 'center',
-        }}>
-          <span style={{ color: '#7a5800', fontWeight: 500 }}>{t('handoff.banner')}</span>
-          <button
-            className="btn btn-primary btn-sm"
-            disabled={handoffBusy}
-            onClick={handleHandoff}
-          >
-            {t('handoff.start')}
-          </button>
-        </div>
-      )}
       <div ref={ref} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: '#f7f2e8', padding: 12 }} />
     </div>
   );

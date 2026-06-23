@@ -127,9 +127,8 @@ func main() {
 
 	mcp.SetVault(vlt)
 
-	// Handoff: usa o primeiro adaptador headless disponível (preferência: claude-code).
-	var handoffGen *handoff.Generator
-	var spawner *wrapperSpawner
+	// Resumo de sessão: usa o primeiro adaptador headless disponível (preferência:
+	// claude-code). Alimenta a ferramenta MCP de resumo e o resumo de progresso da Home.
 	var headlessAdapter adapter.Adapter // mesmo adapter headless serve o resumo da Home
 	for _, adID := range []string{"claude-code", "opencode"} {
 		if ad, ok := reg.Get(adID); ok && ad.Capabilities().Headless {
@@ -137,10 +136,8 @@ func main() {
 			sum := handoff.NewAdapterSummarizer(ad)
 			// O mesmo adaptador lê o transcript ao vivo do .jsonl da sessão in-app
 			// (que não é ingerida em transcript_events) — sem isso o resumo de
-			// handoff de uma sessão viva sairia vazio.
-			handoffGen = handoff.New(st, sum).WithLiveReader(ad)
-			mcp.WithSummaryGenerator(handoffGen)
-			spawner = &wrapperSpawner{store: st, wrapper: wm, workspace: wsManager, adapter: ad, reg: reg, port: port}
+			// uma sessão viva sairia vazio.
+			mcp.WithSummaryGenerator(handoff.New(st, sum).WithLiveReader(ad))
 			break
 		}
 	}
@@ -185,8 +182,6 @@ func main() {
 		Adapters:  reg,
 		Port:      port,
 		Vault:     vlt,
-		Handoff:   handoffGen,
-		Spawner:   spawner,
 		Ask:       askBroker,
 		Engines:   engines,
 		Summarizer: headlessAdapter,
@@ -233,45 +228,4 @@ func runJanitor(ctx context.Context, j *retention.Janitor) {
 			sweep()
 		}
 	}
-}
-
-// wrapperSpawner implementa httpapi.Spawner usando wrapper.Manager.
-type wrapperSpawner struct {
-	store     *store.Store
-	wrapper   *wrapper.Manager
-	workspace *workspace.Manager
-	adapter   adapter.Adapter
-	reg       *adapter.Registry
-	port      int
-}
-
-// Spawn cria uma nova sessão wrapper no projeto com o primer e o link continues.
-func (ws *wrapperSpawner) Spawn(projectID, primer, continues string) (string, error) {
-	sess, err := ws.store.CreateSession(&store.Session{
-		ProjectID: projectID,
-		Adapter:   ws.adapter.ID(),
-		Mode:      "wrapper",
-		Continues: &continues,
-	})
-	if err != nil {
-		return "", err
-	}
-	// Monta SpawnOpts a partir do store (memória + MCP token), depois sobrescreve o primer.
-	opts, err := wrapper.BuildSpawnOpts(ws.store, ws.workspace, sess.ID, ws.port, "", "")
-	if err != nil {
-		return "", err
-	}
-	// Substituir o primer pelo handoff primer (memória + resumo + skills).
-	if primer != "" {
-		opts.Primer = primer
-	}
-	spec, err := ws.adapter.BuildInteractive(opts)
-	if err != nil {
-		return "", err
-	}
-	if err := ws.wrapper.Spawn(sess.ID, spec); err != nil {
-		_ = ws.store.EndSession(sess.ID)
-		return "", err
-	}
-	return sess.ID, nil
 }

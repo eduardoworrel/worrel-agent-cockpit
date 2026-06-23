@@ -14,7 +14,6 @@ type Session struct {
 	Mode             string  `json:"mode"` // wrapper | observed
 	Title            string  `json:"title"`
 	Status           string  `json:"status"` // active | ended | archived
-	Continues        *string `json:"continues"`
 	MCPToken         *string `json:"-"`
 	StartedAt        int64   `json:"started_at"`
 	EndedAt          *int64  `json:"ended_at"`
@@ -51,16 +50,16 @@ func (s *Store) CreateSession(sess *Session) (*Session, error) {
 	// Sessões in-app (wrapper) são spawnadas com --session-id = sess.ID, logo o
 	// ref externo do CLI é o próprio id. Marcá-lo aqui (a) deduplica o importer
 	// — que casa por external_ref e deixa de criar uma gêmea "observed" — e
-	// (b) permite ao handoff resolver o .jsonl da sessão para ler o transcript.
+	// (b) permite resolver o .jsonl da sessão para ler o transcript.
 	if sess.Mode == "wrapper" && sess.ExternalRef == nil {
 		sess.ExternalRef = &sess.ID
 	}
 	sess.StartedAt = now()
 	_, err := s.db.Exec(`INSERT INTO sessions
-		(id, project_id, adapter, external_ref, mode, title, status, continues, mcp_token, started_at, workspace_dir, source_dir)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		(id, project_id, adapter, external_ref, mode, title, status, mcp_token, started_at, workspace_dir, source_dir)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		sess.ID, nullable(sess.ProjectID), sess.Adapter, sess.ExternalRef, sess.Mode,
-		sess.Title, sess.Status, sess.Continues, sess.MCPToken, sess.StartedAt, sess.WorkspaceDir, sess.SourceDir)
+		sess.Title, sess.Status, sess.MCPToken, sess.StartedAt, sess.WorkspaceDir, sess.SourceDir)
 	return sess, err
 }
 
@@ -73,14 +72,14 @@ func (s *Store) SessionByMCPToken(token string) (*Session, error) {
 }
 
 const sessionCols = `SELECT id, COALESCE(project_id,''), adapter, external_ref, mode, title, status,
-	continues, mcp_token, started_at, ended_at, analyzed_at, context_used, context_limit, summary,
+	mcp_token, started_at, ended_at, analyzed_at, context_used, context_limit, summary,
 	transcript_pruned, COALESCE(workspace_dir,''), COALESCE(source_dir,''), COALESCE(end_reason,''), deferred_at
 	FROM sessions`
 
 func scanSession(r rowScanner) (*Session, error) {
 	x := &Session{}
 	err := r.Scan(&x.ID, &x.ProjectID, &x.Adapter, &x.ExternalRef, &x.Mode, &x.Title, &x.Status,
-		&x.Continues, &x.MCPToken, &x.StartedAt, &x.EndedAt, &x.AnalyzedAt,
+		&x.MCPToken, &x.StartedAt, &x.EndedAt, &x.AnalyzedAt,
 		&x.ContextUsed, &x.ContextLimit, &x.Summary, &x.TranscriptPruned, &x.WorkspaceDir, &x.SourceDir, &x.EndReason, &x.DeferredAt)
 	return x, err
 }
@@ -272,13 +271,13 @@ func (s *Store) SetSessionTitle(id, title string) error {
 	return err
 }
 
-// SetSessionSummary grava o resumo estruturado de handoff.
+// SetSessionSummary grava o resumo estruturado da sessão.
 func (s *Store) SetSessionSummary(id, summary string) error {
 	_, err := s.db.Exec(`UPDATE sessions SET summary=? WHERE id=?`, summary, id)
 	return err
 }
 
-// ArchiveSession marca a sessão antiga como arquivada (handoff).
+// ArchiveSession marca a sessão como arquivada (some da listagem padrão).
 func (s *Store) ArchiveSession(id string) error {
 	res, err := s.db.Exec(`UPDATE sessions SET status='archived', ended_at=COALESCE(ended_at, ?) WHERE id=?`, now(), id)
 	if err != nil {
@@ -288,19 +287,6 @@ func (s *Store) ArchiveSession(id string) error {
 		return sql.ErrNoRows
 	}
 	return nil
-}
-
-// ContinuedBy devolve o id da sessão que continua `id` (ou nil).
-func (s *Store) ContinuedBy(id string) (*string, error) {
-	var by string
-	err := s.db.QueryRow(`SELECT id FROM sessions WHERE continues=? LIMIT 1`, id).Scan(&by)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &by, nil
 }
 
 // ClassifySession atrela uma sessão (tipicamente não-classificada) a um projeto.
