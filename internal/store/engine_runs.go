@@ -11,7 +11,8 @@ func (s *Store) UnrunEndedSessions(engineID, projectID string) ([]*Session, erro
 	rows, err := s.db.Query(`SELECT id, COALESCE(project_id,''), adapter, mode, title, status,
 		started_at, ended_at
 		FROM sessions
-		WHERE status='ended' AND id NOT IN (SELECT session_id FROM engine_runs WHERE engine_id=?)
+		WHERE status='ended' AND project_id IS NOT NULL
+		  AND id NOT IN (SELECT session_id FROM engine_runs WHERE engine_id=?)
 		  AND (?='' OR project_id=?)
 		ORDER BY ended_at`, engineID, projectID, projectID)
 	if err != nil {
@@ -35,7 +36,8 @@ func (s *Store) UnrunEndedSessions(engineID, projectID string) ([]*Session, erro
 func (s *Store) CountUnrunEndedSessions(engineID, projectID string) (int, error) {
 	var n int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions
-		WHERE status='ended' AND id NOT IN (SELECT session_id FROM engine_runs WHERE engine_id=?)
+		WHERE status='ended' AND project_id IS NOT NULL
+		  AND id NOT IN (SELECT session_id FROM engine_runs WHERE engine_id=?)
 		  AND (?='' OR project_id=?)`, engineID, projectID, projectID).Scan(&n)
 	return n, err
 }
@@ -44,7 +46,7 @@ func (s *Store) CountUnrunEndedSessions(engineID, projectID string) (int, error)
 // modo "ao vivo": o scheduler roda o motor sobre elas durante a sessão.
 func (s *Store) ActiveSessions() ([]*Session, error) {
 	rows, err := s.db.Query(`SELECT id, COALESCE(project_id,''), adapter, mode, title, status,
-		started_at, ended_at FROM sessions WHERE status='active' ORDER BY started_at`)
+		started_at, ended_at FROM sessions WHERE status='active' AND project_id IS NOT NULL ORDER BY started_at`)
 	if err != nil {
 		return nil, err
 	}

@@ -59,3 +59,28 @@ func TestUnrunEndedByProjectAndCount(t *testing.T) {
 		t.Fatalf("count global pós-marca = %d (quer 1)", n)
 	}
 }
+
+// Sessões órfãs (projeto apagado → project_id NULL via ON DELETE SET NULL) NÃO
+// devem ser devolvidas ao scheduler: os motores inserem em tabelas com
+// project_id NOT NULL REFERENCES projects(id), e um project_id vazio dispara
+// FOREIGN KEY constraint failed (787). O scheduler precisa pulá-las na origem.
+func TestUnrunAndActiveSkipOrphanSessions(t *testing.T) {
+	s := newTestStore(t)
+	p, _ := s.CreateProject("Some", "")
+	ended, _ := s.CreateSession(&Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper", Status: "ended"})
+	active, _ := s.CreateSession(&Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper", Status: "active"})
+
+	if err := s.DeleteProject(p.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if un, _ := s.UnrunEndedSessions("skill", ""); len(un) != 0 {
+		t.Fatalf("UnrunEndedSessions deveria pular órfã %s: %+v", ended.ID, un)
+	}
+	if n, _ := s.CountUnrunEndedSessions("skill", ""); n != 0 {
+		t.Fatalf("CountUnrunEndedSessions órfã = %d (quer 0)", n)
+	}
+	if act, _ := s.ActiveSessions(); len(act) != 0 {
+		t.Fatalf("ActiveSessions deveria pular órfã %s: %+v", active.ID, act)
+	}
+}
