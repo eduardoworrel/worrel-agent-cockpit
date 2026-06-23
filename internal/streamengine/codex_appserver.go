@@ -278,5 +278,27 @@ func (s *codexSession) persistLineCodex(l agui.HistoryLine) {
 	}
 }
 
-// handleItem: stub preenchido na Task 2.
-func (s *codexSession) handleItem(method string, params map[string]any) {}
+// handleItem: registra ToolCall + history para itens tool (ex: commandExecution).
+// Só registra em item/started; item/completed reutiliza o mesmo id e não duplica.
+func (s *codexSession) handleItem(method string, params map[string]any) {
+	if method != "item/started" {
+		return // só registramos no started; completed reusa o mesmo id
+	}
+	item, _ := params["item"].(map[string]any)
+	typ, _ := item["type"].(string)
+	if typ == "" || typ == "userMessage" {
+		return // echo do próprio usuário não é tool call
+	}
+	cmd, _ := item["command"].(string)
+	sum := cmd
+	if sum == "" {
+		sum = summarizeInput(item)
+	}
+	line := agui.HistoryLine{Role: "tool", Text: strings.TrimSpace(typ + " " + sum)}
+	s.mu.Lock()
+	s.toolCalls = append(s.toolCalls, agui.ToolCall{Name: typ, Summary: sum})
+	s.history = append(s.history, line)
+	s.mu.Unlock()
+	s.persistLineCodex(line)
+	s.notify()
+}

@@ -43,3 +43,25 @@ func TestCodexDriverSatisfiesDriver(t *testing.T) {
 	var _ Driver = codexDriver{}
 	var _ LiveSession = (*codexSession)(nil)
 }
+
+func TestCodexCommandItemRecorded(t *testing.T) {
+	s := newTestCodex()
+	s.handleNotification("item/started", map[string]any{
+		"item": map[string]any{"type": "commandExecution", "id": "call_1",
+			"command": "/bin/zsh -lc 'echo hi'", "status": "inProgress"}})
+	tcs := s.Snapshot().ToolCalls
+	if len(tcs) != 1 || tcs[0].Name != "commandExecution" {
+		t.Fatalf("ToolCalls = %+v, quer 1 commandExecution", tcs)
+	}
+}
+
+func TestCodexCompletedDoesNotDoubleRecord(t *testing.T) {
+	s := newTestCodex()
+	item := map[string]any{"item": map[string]any{"type": "commandExecution", "id": "call_1",
+		"command": "echo hi", "status": "completed"}}
+	s.handleNotification("item/started", item)
+	s.handleNotification("item/completed", item)
+	if n := len(s.Snapshot().ToolCalls); n != 1 {
+		t.Fatalf("ToolCalls = %d, quer 1 (sem duplicar no completed)", n)
+	}
+}
