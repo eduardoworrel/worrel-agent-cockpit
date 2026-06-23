@@ -96,11 +96,7 @@ export default function EngineCard({ item, setConfig, onRun, backlog, reprocess,
         {onRun && (
           <div className="ec-run">
             <button type="button" className="btn btn-primary" onClick={() => onRun(spec.id)}>▶ Rodar agora</button>
-<<<<<<< HEAD
-            <i className="ec-info" data-tip="'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada.">ⓘ</i>
-=======
             <i className="ec-info" data-tip={RUN_VS_HISTORY_TIP}>ⓘ</i>
->>>>>>> feat/analisar-historico-motores
             <span>Dispara o motor uma vez agora (o modo “sob demanda” usa este botão).</span>
           </div>
         )}
@@ -148,11 +144,7 @@ export default function EngineCard({ item, setConfig, onRun, backlog, reprocess,
                   ? 'Tudo em dia ✓'
                   : `▶ Analisar histórico (${backlog})`}
             </button>
-<<<<<<< HEAD
-            <i className="ec-info" data-tip="'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada.">ⓘ</i>
-=======
             <i className="ec-info" data-tip={RUN_VS_HISTORY_TIP}>ⓘ</i>
->>>>>>> feat/analisar-historico-motores
           </div>
           {reprocess && reprocess.total > 0 && (
             <div className="ec-progress"><div className="ec-progress-bar" style={{ width: `${Math.round(100 * reprocess.done / reprocess.total)}%` }} /></div>

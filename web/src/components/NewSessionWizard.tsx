@@ -99,25 +99,6 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
     markUsed('provider', adapterId);
     if (projectId) markUsed('project', projectId);
     try {
-<<<<<<< HEAD
-      // O motor stream-json só dirige o `claude`. Para ele, a sessão vira uma
-      // miniatura AG-UI na Home (openTerminal decide ficar na Home ou abrir a
-      // conversa). Qualquer outro harness (opencode, antigravity, codex, pidev) não
-      // fala stream-json: roda pelo caminho wrapper (PTY) e abre o terminal.
-      if (adapterId === 'claude-code') {
-        const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
-        if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
-        onCreated(sess, openTerminal);
-        return;
-      }
-      const seedOpts = seed
-        ? (seed.kind === 'skill' ? { skillId: seed.id } : { agentId: seed.id })
-        : undefined;
-      const sess = projectId
-        ? await createSession(projectId, adapterId, seedOpts)
-        : await createFreeSession(adapterId, undefined, seed?.kind === 'skill' ? seed.id : undefined);
-      onCreated(sess, true);
-=======
       // Modo clássico: terminal puro (PTY) com a CLI real escolhida no provider.
       // Não passa pelo motor de eventos → SessionRoute abre o xterm. Sempre
       // navega para o terminal (não há miniatura interativa para essa sessão).
@@ -138,7 +119,6 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
       const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
       if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
       onCreated(sess, openTerminal);
->>>>>>> feat/analisar-historico-motores
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common.actionFailed'));
       setBusy(false);
