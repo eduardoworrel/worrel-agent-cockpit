@@ -279,6 +279,8 @@ i18next
             noSessions: 'No active sessions.',
           },
           project: {
+            archive: 'Archive project',
+            archiveConfirm: 'Archive this project? It will be hidden from the project list.',
             tabs: {
               memory: 'Memory',
               skills: 'Skills',
@@ -824,6 +826,8 @@ i18next
             noSessions: 'Nenhuma sessão ativa.',
           },
           project: {
+            archive: 'Arquivar projeto',
+            archiveConfirm: 'Arquivar este projeto? Ele ficará oculto da lista de projetos.',
             tabs: {
               memory: 'Memória',
               skills: 'Habilidades',

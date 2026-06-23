@@ -107,6 +107,10 @@ func migrateAddColumns(db *sql.DB) error {
 		// DESC dá as mais recentes (as bolinhas do sidebar). Limpo ao responder.
 		{"sessions", "deferred_at",
 			`ALTER TABLE sessions ADD COLUMN deferred_at INTEGER`},
+		// status do projeto: 'active' (padrão) ou 'archived'. Projetos
+		// arquivados são omitidos da listagem padrão (ListProjects).
+		{"projects", "status",
+			`ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`},
 	}
 	for _, w := range wanted {
 		var n int

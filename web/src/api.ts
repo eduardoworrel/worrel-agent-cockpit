@@ -6,6 +6,7 @@ export interface Project {
   dirs: string[];
   created_at: number;
   updated_at: number;
+  status?: string;
 }
 
 export interface MemoryVersion {
@@ -140,6 +141,10 @@ export function updateProject(id: string, name: string, description: string): Pr
     method: 'PUT',
     body: JSON.stringify({ name, description }),
   });
+}
+
+export function archiveProject(id: string): Promise<{ ok: boolean }> {
+  return req(`/projects/${id}/archive`, { method: 'POST' });
 }
 
 export function getMemory(projectId: string): Promise<MemoryVersion> {

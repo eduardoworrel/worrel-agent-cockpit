@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 )
 
 // notFoundOr500 mapeia sql.ErrNoRows para 404 e o restante para 500.
@@ -91,6 +93,15 @@ func (s *Server) routesProjects() {
 			notFoundOr500(w, err, "projeto não encontrado")
 			return
 		}
+		writeJSON(w, 200, map[string]bool{"ok": true})
+	})
+	s.mux.HandleFunc("POST /api/projects/{id}/archive", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := s.deps.Store.ArchiveProject(id); err != nil {
+			notFoundOr500(w, err, "projeto não encontrado")
+			return
+		}
+		s.deps.Bus.Publish(bus.Event{Type: "project.archived", Payload: map[string]any{"id": id}})
 		writeJSON(w, 200, map[string]bool{"ok": true})
 	})
 	s.mux.HandleFunc("GET /api/projects/{id}/memory", func(w http.ResponseWriter, r *http.Request) {

@@ -19,6 +19,7 @@ type Project struct {
 	CreatedAt    int64    `json:"created_at"`
 	UpdatedAt    int64    `json:"updated_at"`
 	WorkspaceDir string   `json:"workspace_dir"`
+	Status       string   `json:"status"` // active | archived
 }
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
@@ -55,7 +56,7 @@ func (s *Store) CreateProject(name, description string) (*Project, error) {
 
 func (s *Store) scanProject(row *sql.Row) (*Project, error) {
 	p := &Project{Dirs: []string{}}
-	if err := row.Scan(&p.ID, &p.Slug, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt, &p.WorkspaceDir); err != nil {
+	if err := row.Scan(&p.ID, &p.Slug, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt, &p.WorkspaceDir, &p.Status); err != nil {
 		return nil, err
 	}
 	rows, err := s.db.Query(`SELECT dir FROM project_dirs WHERE project_id=? ORDER BY dir`, p.ID)
@@ -75,7 +76,7 @@ func (s *Store) scanProject(row *sql.Row) (*Project, error) {
 
 func (s *Store) GetProject(id string) (*Project, error) {
 	return s.scanProject(s.db.QueryRow(
-		`SELECT id, slug, name, description, created_at, updated_at, workspace_dir FROM projects WHERE id=?`, id))
+		`SELECT id, slug, name, description, created_at, updated_at, workspace_dir, status FROM projects WHERE id=?`, id))
 }
 
 func (s *Store) ProjectByDir(dir string) (*Project, error) {
@@ -87,7 +88,7 @@ func (s *Store) ProjectByDir(dir string) (*Project, error) {
 }
 
 func (s *Store) ListProjects() ([]*Project, error) {
-	rows, err := s.db.Query(`SELECT id FROM projects ORDER BY updated_at DESC`)
+	rows, err := s.db.Query(`SELECT id FROM projects WHERE status != 'archived' ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +140,17 @@ func (s *Store) AddProjectDir(id, dir string) error {
 func (s *Store) RemoveProjectDir(id, dir string) error {
 	_, err := s.db.Exec(`DELETE FROM project_dirs WHERE project_id=? AND dir=?`, id, dir)
 	return err
+}
+
+func (s *Store) ArchiveProject(id string) error {
+	res, err := s.db.Exec(`UPDATE projects SET status='archived', updated_at=? WHERE id=?`, now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) DeleteProject(id string) error {

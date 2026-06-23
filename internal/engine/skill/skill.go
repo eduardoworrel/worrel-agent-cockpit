@@ -63,6 +63,13 @@ func (e *Engine) Spec() eng.Spec {
 }
 
 func (e *Engine) Run(ctx context.Context, rc eng.RunContext) error {
+	// skill_candidates.project_id é NOT NULL REFERENCES projects(id): uma sessão
+	// sem projeto não pode gerar candidato project-scoped. Ignora sem erro (e sem
+	// gastar LLM) — caso contrário o INSERT viola o FK (787) e o scheduler re-tenta
+	// a cada tick, repetindo a falha.
+	if rc.ProjectID == "" {
+		return nil
+	}
 	events, err := rc.Store.ListTranscriptEvents(rc.SessionID)
 	if err != nil {
 		return err

@@ -26,6 +26,24 @@ func seedSteps(t *testing.T, st *store.Store, sid string) {
 
 const draftOut = `[{"signature":"sig-deploy","title":"Deploy","skill_draft":{"name":"Deploy","content":"## passos","structured":"{}"},"agente_draft":{"name":"Deployer","persona":"p"}}]`
 
+func TestSkillSkipsProjectlessSession(t *testing.T) {
+	st, _ := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	m := skill.New(fakeLLM{out: draftOut})
+	r := eng.NewRegistry()
+	r.Register(m)
+
+	// Sessão sem projeto: project_id NULL → o scheduler resolve para "".
+	s1, _ := st.CreateSession(&store.Session{Adapter: "claude-code", Mode: "wrapper"})
+	seedSteps(t, st, s1.ID)
+	// Não pode violar FK (skill_candidates.project_id NOT NULL REFERENCES projects).
+	if err := r.Run(context.Background(), st, "skill", "", s1.ID); err != nil {
+		t.Fatalf("sessão sem projeto deveria ser ignorada sem erro, got: %v", err)
+	}
+	if sg, _ := st.ListSuggestions("", ""); len(sg) != 0 {
+		t.Fatalf("sessão sem projeto não deveria gerar sugestão, got %d", len(sg))
+	}
+}
+
 func TestSkillMaturesOnSecondSession(t *testing.T) {
 	st, _ := store.Open(filepath.Join(t.TempDir(), "t.db"))
 	p, _ := st.CreateProject("App", "")

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   getProject,
+  archiveProject,
   getMemory,
   saveMemory,
   listMemoryVersions,
@@ -131,6 +132,15 @@ export default function Project() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleArchive() {
+    if (!id) return;
+    if (!window.confirm(t('project.archiveConfirm'))) return;
+    return run(async () => {
+      await archiveProject(id);
+      navigate('/');
+    });
   }
 
   function handleSaveMemory() {
@@ -301,6 +311,9 @@ export default function Project() {
           <h1 style={{ marginTop: 6 }}>{project.name}</h1>
           {project.description && <p className="sub">{project.description}</p>}
         </div>
+        <button className="btn-secondary" onClick={handleArchive} disabled={busy}>
+          {t('project.archive')}
+        </button>
       </div>
 
       {error && <p className="error-banner">{t('common.actionFailed')}</p>}
