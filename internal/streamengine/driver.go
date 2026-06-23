@@ -36,5 +36,7 @@ func (claudeDriver) Start(ctx context.Context, sessionID, cwd string, o Opts,
 func DefaultDrivers() map[string]Driver {
 	return map[string]Driver{
 		"claude-code": claudeDriver{},
+		"opencode":    opencodeDriver{},
+		"codex":       codexDriver{},
 	}
 }

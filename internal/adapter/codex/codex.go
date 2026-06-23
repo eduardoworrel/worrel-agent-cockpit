@@ -1,12 +1,13 @@
 // Package codex implementa o Adapter para o Codex CLI da OpenAI (`codex`).
 //
-// Fatos confirmados (Codex CLI v0.116, openai/codex):
+// Fatos confirmados (Codex CLI v0.139, openai/codex):
 //   - binário: `codex`; versão via `codex --version`.
 //   - interativo: `codex [PROMPT]` (TUI). Modelo via `-m`; cwd via `-C`.
 //   - headless: `codex exec [PROMPT]` (alias `codex e`); `-m` modelo, `-C` cwd,
 //     `-o <file>` grava a mensagem final do assistente (--output-last-message),
-//     `--skip-git-repo-check` permite rodar fora de repo git, `-a never` /
-//     `-s danger-full-access` para não bloquear em scans não-interativos.
+//     `--skip-git-repo-check` permite rodar fora de repo git. `codex exec` já é
+//     não-interativo (não pede aprovação) — o antigo `-a never` foi REMOVIDO do
+//     subcomando e aborta com erro a partir do v0.13x.
 //   - MCP HTTP: `[mcp_servers.<nome>] url=...` exige experimental_use_rmcp_client;
 //     injetado via overrides `-c key=value` (sem mutar o config global do usuário).
 //   - histórico: rollouts JSONL em ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl
@@ -128,10 +129,12 @@ func (a *Adapter) BuildInteractive(opts adapter.SpawnOpts) (adapter.CmdSpec, err
 }
 
 // buildExecArgs monta os argumentos de `codex exec`. O modelo (opts.Model),
-// quando não-vazio, vira `-m <model>`. -a never / -s danger-full-access evitam
-// bloqueio em execução não-interativa; --skip-git-repo-check permite cwd sem git.
+// quando não-vazio, vira `-m <model>`. `codex exec` já é não-interativo (não
+// pede aprovação), então NÃO passamos `-a/--ask-for-approval`: esse flag foi
+// removido do subcomando `exec` a partir do Codex v0.13x (na v0.139 ele aborta
+// com "unexpected argument '-a'"). --skip-git-repo-check permite cwd sem git.
 func buildExecArgs(prompt string, opts adapter.HeadlessOpts, lastMsgFile string) []string {
-	args := []string{"exec", "-a", "never", "--skip-git-repo-check"}
+	args := []string{"exec", "--skip-git-repo-check"}
 	if opts.WorkingDir != "" {
 		args = append(args, "-C", opts.WorkingDir)
 	}

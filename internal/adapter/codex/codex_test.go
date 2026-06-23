@@ -129,7 +129,10 @@ func TestBuildExecArgs(t *testing.T) {
 	if args[0] != "exec" {
 		t.Fatalf("primeiro arg = %q, quer exec", args[0])
 	}
-	for _, want := range []string{"-a never", "--skip-git-repo-check", "-C /w", "-m gpt-5.4", "-o /tmp/last.txt"} {
+	if strings.Contains(joined, "-a never") || strings.Contains(joined, "--ask-for-approval") {
+		t.Errorf("não deveria passar -a/--ask-for-approval (removido do `codex exec` no v0.13x+): %v", args)
+	}
+	for _, want := range []string{"--skip-git-repo-check", "-C /w", "-m gpt-5.4", "-o /tmp/last.txt"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("faltou %q em %v", want, args)
 		}

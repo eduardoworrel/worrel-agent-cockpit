@@ -85,6 +85,10 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    if (adapterId === 'antigravity') setClassic(true);
+  }, [adapterId]);
+
   function pickProject(id: string | null) {
     setProjectId(id);
     setSeed(null);
@@ -116,7 +120,9 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
       }
       // Sessão de motor (stream-json): openTerminal só decide a navegação —
       // ficar na Home (miniatura) ou abrir a conversa.
-      const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
+      // Sessão de motor (stream-json): passa o provider selecionado. O backend
+      // valida (antigravity é bloqueado — sem protocolo stream).
+      const sess = await createEngineSession(projectId ?? undefined, permMode, mode, adapterId);
       if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
       onCreated(sess, openTerminal);
     } catch (err) {
@@ -272,6 +278,8 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
                 <div className="nsw-modes">
                   {([false, true] as const).map((isClassic) => (
                     <button key={String(isClassic)} className={`nsw-mode${classic === isClassic ? ' on' : ''}`}
+                      disabled={!isClassic && adapterId === 'antigravity'}
+                      title={!isClassic && adapterId === 'antigravity' ? t('home.wizard.integratedUnavailable') : undefined}
                       onClick={() => setClassic(isClassic)} aria-pressed={classic === isClassic}>
                       <span className="nsw-mode-name">
                         {t(isClassic ? 'home.wizard.classicMode' : 'home.wizard.engineMode')}

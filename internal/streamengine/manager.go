@@ -7,30 +7,39 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/agui"
 )
 
-// Manager mantém as sessões dirigidas pelo motor stream-json, indexadas por id.
+// Manager mantém as sessões integradas vivas, indexadas por id, e o registro de
+// drivers por provider.
 type Manager struct {
 	mu       sync.Mutex
-	sessions map[string]*Session
+	sessions map[string]LiveSession
+	drivers  map[string]Driver
 	onChange func(sessionID string)
-	// persist grava cada linha do histórico de uma sessão no store (durável). É
-	// o que faz o chat sobreviver ao restart do app. Pode ser nil.
-	persist func(sessionID, role, text string)
+	persist  func(sessionID, role, text string)
 }
 
-// NewManager cria o gerenciador. onChange é chamado a cada transição de qualquer
-// sessão (a borda HTTP publica isso no bus para a Home rebuscar). persist grava
-// cada linha do histórico no store para o chat sobreviver ao restart (pode ser nil).
+// NewManager cria o gerenciador com os drivers padrão (DefaultDrivers).
 func NewManager(onChange func(string), persist func(sessionID, role, text string)) *Manager {
-	return &Manager{sessions: map[string]*Session{}, onChange: onChange, persist: persist}
+	return &Manager{
+		sessions: map[string]LiveSession{},
+		drivers:  DefaultDrivers(),
+		onChange: onChange,
+		persist:  persist,
+	}
 }
 
-// Start spawna e registra uma sessão do motor no cwd dado, com as opções.
-func (m *Manager) Start(ctx context.Context, sessionID, cwd string, o Opts) error {
+// Start spawna e registra uma sessão do provider dado no cwd, com as opções.
+func (m *Manager) Start(ctx context.Context, provider, sessionID, cwd string, o Opts) error {
+	m.mu.Lock()
+	drv := m.drivers[provider]
+	m.mu.Unlock()
+	if drv == nil {
+		return ErrUnknownProvider
+	}
 	var persist func(role, text string)
 	if m.persist != nil {
 		persist = func(role, text string) { m.persist(sessionID, role, text) }
 	}
-	s, err := Start(ctx, sessionID, cwd, o, m.onChange, persist)
+	s, err := drv.Start(ctx, sessionID, cwd, o, m.onChange, persist)
 	if err != nil {
 		return err
 	}
@@ -40,6 +49,13 @@ func (m *Manager) Start(ctx context.Context, sessionID, cwd string, o Opts) erro
 	return nil
 }
 
+// ErrUnknownProvider indica que o provider não tem driver no modo Integrado.
+var ErrUnknownProvider = errUnknownProvider{}
+
+type errUnknownProvider struct{}
+
+func (errUnknownProvider) Error() string { return "provider não suportado no modo integrado" }
+
 // Has diz se a sessão é dirigida pelo motor (vs. caminho legado PTY).
 func (m *Manager) Has(sessionID string) bool {
 	m.mu.Lock()
@@ -48,7 +64,7 @@ func (m *Manager) Has(sessionID string) bool {
 	return ok
 }
 
-func (m *Manager) get(sessionID string) *Session {
+func (m *Manager) get(sessionID string) LiveSession {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.sessions[sessionID]

@@ -27,9 +27,16 @@ func (s *Server) handleCreateEngineSession(w http.ResponseWriter, r *http.Reques
 	}
 	in, _ := decode[struct {
 		ProjectID string `json:"project_id"`
-		Mode      string `json:"mode"`   // modo de permissão ("" = auto)
-		Memory    string `json:"memory"` // "inicio" injeta a memória; "consulta" liga o MCP
+		Provider  string `json:"provider"` // "" = claude-code; antigravity bloqueado
+		Mode      string `json:"mode"`     // modo de permissão ("" = auto)
+		Memory    string `json:"memory"`   // "inicio" injeta a memória; "consulta" liga o MCP
 	}](r)
+
+	provider, ok := normalizeProvider(in.Provider)
+	if !ok {
+		writeErr(w, 400, "provider não suportado no modo integrado (use o modo Clássico)")
+		return
+	}
 
 	sess, err := s.deps.Store.CreateSession(&store.Session{
 		ProjectID: in.ProjectID,
@@ -80,7 +87,7 @@ func (s *Server) handleCreateEngineSession(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	if err := s.deps.Engine.Start(context.Background(), sess.ID, cwd, opts); err != nil {
+	if err := s.deps.Engine.Start(context.Background(), provider, sess.ID, cwd, opts); err != nil {
 		_ = s.deps.Store.EndSession(sess.ID)
 		writeErr(w, 500, err.Error())
 		return
@@ -88,6 +95,19 @@ func (s *Server) handleCreateEngineSession(w http.ResponseWriter, r *http.Reques
 	s.deps.Bus.Publish(bus.Event{Type: "session.started", Payload: map[string]any{"id": sess.ID, "project_id": sess.ProjectID}})
 	fresh, _ := s.deps.Store.GetSession(sess.ID)
 	writeJSON(w, 201, fresh)
+}
+
+// normalizeProvider valida o provider do modo Integrado. "" vira o default
+// (claude-code). antigravity é bloqueado: o binário `agy` não tem protocolo
+// stream (sem --output-format), então não há como dirigir a sessão.
+func normalizeProvider(p string) (string, bool) {
+	if p == "" {
+		return "claude-code", true
+	}
+	if p == "antigravity" {
+		return "", false
+	}
+	return p, true
 }
 
 // projectMemoryText reúne a memória do projeto para injetar: a versão editável

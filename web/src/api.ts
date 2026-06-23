@@ -543,10 +543,10 @@ export type MemoryMode = 'inicio' | 'consulta';
 // createEngineSession cria uma sessão dirigida pelo motor stream-json (sem PTY):
 // a Home a gerencia 100% pelo canal AG-UI. mode = permissão do CC; memory = como
 // a memória do projeto entra na sessão.
-export function createEngineSession(projectId?: string, mode?: PermissionMode, memory?: MemoryMode): Promise<Session> {
+export function createEngineSession(projectId?: string, mode?: PermissionMode, memory?: MemoryMode, provider?: string): Promise<Session> {
   return req('/sessions/engine', {
     method: 'POST',
-    body: JSON.stringify({ project_id: projectId ?? '', mode: mode ?? 'auto', memory: memory ?? 'inicio' }),
+    body: JSON.stringify({ project_id: projectId ?? '', mode: mode ?? 'auto', memory: memory ?? 'inicio', provider: provider ?? '' }),
   });
 }
 
