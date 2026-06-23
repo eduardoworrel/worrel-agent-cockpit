@@ -18,8 +18,8 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/friction"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/memory"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/skill"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/antigravity"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/codex"
-	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/gemini"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/opencode"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter/pidev"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
@@ -92,13 +92,13 @@ func main() {
 
 	cc := &claudecode.Adapter{ProjectsRoot: claudeProjectsRoot}
 	oc := &opencode.Adapter{}
-	gem := gemini.New()
+	ag := antigravity.New()
 	cx := codex.New()
 	pd := pidev.New()
 	reg := adapter.NewRegistry()
 	reg.Register(cc)
 	reg.Register(oc)
-	reg.Register(gem)
+	reg.Register(ag)
 	reg.Register(cx)
 	reg.Register(pd)
 	wm := wrapper.New(st, b)

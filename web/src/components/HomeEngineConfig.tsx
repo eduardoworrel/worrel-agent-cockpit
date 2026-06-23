@@ -7,7 +7,7 @@ const HARNESSES = [
   { value: '', label: 'Padrão' },
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'opencode', label: 'opencode' },
-  { value: 'gemini', label: 'Gemini' },
+  { value: 'antigravity', label: 'Antigravity' },
   { value: 'codex', label: 'Codex' },
 ];
 

@@ -12,7 +12,7 @@ export default function SessionRoute({ sessions }: { sessions: Session[] }) {
   // Sessões legadas (adapter de CLI real, ex.: claude-code/opencode com PTV)
   // abrem o xterm. O motor (adapter "engine") e o caso desconhecido — incluindo
   // uma sessão recém-criada ainda não listada — abrem a conversa do motor.
-  const legacyAdapters = ['claude-code', 'opencode', 'gemini', 'codex', 'pidev'];
+  const legacyAdapters = ['claude-code', 'opencode', 'antigravity', 'codex', 'pidev'];
   if (sess && legacyAdapters.includes(sess.adapter)) return <Terminal />;
   return <SessionStream />;
 }

@@ -51,7 +51,7 @@ var HarnessOptions = []ConfigOption{
 	{Value: "", Label: "Padrão", Description: "Usa o harness padrão do worrel."},
 	{Value: "claude-code", Label: "Claude Code", Description: "Executa a destilação via Claude Code (headless)."},
 	{Value: "opencode", Label: "opencode", Description: "Executa via opencode (headless)."},
-	{Value: "gemini", Label: "Gemini", Description: "Executa via Gemini CLI (se suportar headless)."},
+	{Value: "antigravity", Label: "Antigravity", Description: "Executa via Antigravity CLI (agy)."},
 	{Value: "codex", Label: "Codex", Description: "Executa via Codex CLI (se suportar headless)."},
 }
 

@@ -45,7 +45,8 @@ const PROVIDER_CLASS: Record<string, string> = {
   claude: 'sky',
   engine: 'sky', // o motor stream-json roda sempre o claude → mesma cor do Claude Code
   opencode: 'amber',
-  gemini: 'green',
+  antigravity: 'green',
+  gemini: 'green', // mantido p/ render de sessões antigas (legado, sem custo)
   codex: 'pink',
   pidev: 'amber',
 };
