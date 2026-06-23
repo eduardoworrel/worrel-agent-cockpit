@@ -40,7 +40,7 @@ func (s *Scheduler) Start(ctx context.Context, interval time.Duration) {
 // não processou (uma vez cada).
 func (s *Scheduler) Tick(ctx context.Context) {
 	for _, spec := range s.reg.List() {
-		sessions, err := s.st.UnrunEndedSessions(spec.ID)
+		sessions, err := s.st.UnrunEndedSessions(spec.ID, "")
 		if err != nil {
 			log.Printf("scheduler: %v", err)
 			continue

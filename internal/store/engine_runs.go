@@ -5,13 +5,15 @@ package store
 // sugestões a cada tick). Chave (engine_id, session_id).
 
 // UnrunEndedSessions devolve as sessões encerradas que o motor engineID ainda
-// NÃO processou. O scheduler resolve a config por projeto e decide se roda.
-func (s *Store) UnrunEndedSessions(engineID string) ([]*Session, error) {
+// NÃO processou. projectID=="" abrange todos os projetos. O scheduler resolve a
+// config por projeto e decide se roda.
+func (s *Store) UnrunEndedSessions(engineID, projectID string) ([]*Session, error) {
 	rows, err := s.db.Query(`SELECT id, COALESCE(project_id,''), adapter, mode, title, status,
 		started_at, ended_at
 		FROM sessions
 		WHERE status='ended' AND id NOT IN (SELECT session_id FROM engine_runs WHERE engine_id=?)
-		ORDER BY ended_at`, engineID)
+		  AND (?='' OR project_id=?)
+		ORDER BY ended_at`, engineID, projectID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -26,6 +28,16 @@ func (s *Store) UnrunEndedSessions(engineID string) ([]*Session, error) {
 		out = append(out, x)
 	}
 	return out, rows.Err()
+}
+
+// CountUnrunEndedSessions conta as sessões encerradas não-analisadas por engineID
+// (mesmo predicado de UnrunEndedSessions). projectID=="" abrange todos.
+func (s *Store) CountUnrunEndedSessions(engineID, projectID string) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions
+		WHERE status='ended' AND id NOT IN (SELECT session_id FROM engine_runs WHERE engine_id=?)
+		  AND (?='' OR project_id=?)`, engineID, projectID, projectID).Scan(&n)
+	return n, err
 }
 
 // ActiveSessions devolve as sessões em andamento (status='active'). Usado pelo
