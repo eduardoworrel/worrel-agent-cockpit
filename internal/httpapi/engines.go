@@ -37,6 +37,15 @@ func (s *Server) routesEngines() {
 		writeJSON(w, http.StatusOK, log)
 	})
 
+	s.mux.HandleFunc("GET /api/engines/{id}/backlog", func(w http.ResponseWriter, r *http.Request) {
+		n, err := s.deps.Store.CountUnrunEndedSessions(r.PathValue("id"), r.URL.Query().Get("project_id"))
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]int{"unanalyzed": n})
+	})
+
 	s.mux.HandleFunc("GET /api/engines/{id}/enabled", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		sessionID := r.URL.Query().Get("session_id")

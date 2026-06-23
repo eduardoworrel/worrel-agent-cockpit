@@ -63,6 +63,24 @@ func TestEnginesListAndRun(t *testing.T) {
 	_ = http.StatusOK
 }
 
+func TestEngineBacklog(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.CreateProject("App", "")
+	_, _ = st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper", Status: "ended"})
+	reg := engine.NewRegistry()
+	reg.Register(example.Counter{})
+	srv := New(Deps{Store: st, Engines: reg})
+
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/engines/example-counter/backlog", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"unanalyzed":1`) {
+		t.Fatalf("backlog: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestEnginesEnabledEndpoint(t *testing.T) {
 	st, _ := store.Open(filepath.Join(t.TempDir(), "t.db"))
 	defer st.Close()
