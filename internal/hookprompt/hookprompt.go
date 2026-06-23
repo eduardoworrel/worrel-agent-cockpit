@@ -7,8 +7,6 @@
 //     {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow|deny|ask"}}.
 //     Codex (PreToolUse) reusa o mesmo schema do Claude Code, incluindo o enum
 //     allow/deny/ask, então compartilham a renderização.
-//   - "gemini": {"decision":"allow"} | {"decision":"deny","reason":...}; para
-//     deferir ao fluxo nativo, emite {} (sem decisão).
 package hookprompt
 
 import (
@@ -19,7 +17,7 @@ import (
 	"time"
 )
 
-// input é o subconjunto do JSON do hook que usamos. Claude Code, Codex e Gemini
+// input é o subconjunto do JSON do hook que usamos. Claude Code e Codex
 // entregam o nome e os args da tool em tool_name/tool_input.
 type input struct {
 	ToolName  string          `json:"tool_name"`
@@ -29,28 +27,18 @@ type input struct {
 // render produz o JSON de saída no formato do CLI alvo. decision ∈
 // {"allow","deny",""}; "" significa deferir ao fluxo nativo de permissão.
 func render(format, decision string) any {
-	switch format {
-	case "gemini":
-		switch decision {
-		case "allow":
-			return map[string]any{"decision": "allow"}
-		case "deny":
-			return map[string]any{"decision": "deny", "reason": "Negado pelo worrel"}
-		default:
-			// sem decisão → Gemini segue o fluxo normal de confirmação
-			return map[string]any{}
-		}
-	default: // "claude", "codex" e qualquer outro: schema do Claude Code
-		pd := decision
-		if pd == "" {
-			pd = "ask" // defer: deixa o CLI seguir o fluxo normal de permissão
-		}
-		return map[string]any{
-			"hookSpecificOutput": map[string]any{
-				"hookEventName":      "PreToolUse",
-				"permissionDecision": pd,
-			},
-		}
+	// "claude", "codex" e qualquer outro: schema do Claude Code (mesmo enum
+	// allow/deny/ask). O parâmetro format permanece para futuros formatos.
+	_ = format
+	pd := decision
+	if pd == "" {
+		pd = "ask" // defer: deixa o CLI seguir o fluxo normal de permissão
+	}
+	return map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":      "PreToolUse",
+			"permissionDecision": pd,
+		},
 	}
 }
 

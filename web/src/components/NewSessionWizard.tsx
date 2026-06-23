@@ -5,6 +5,7 @@ import {
   createEngineSession, createSession, createFreeSession, sendPrompt,
 } from '../api';
 import type { Project, DetectedAdapter, Skill, Agent, Session, PermissionMode } from '../api';
+import { markUsed, orderBy } from '../lastUsed';
 import NewProjectModal from './NewProjectModal';
 
 interface Props {
@@ -58,7 +59,8 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
   useEffect(() => {
     listProjects().then(setProjects).catch(() => setProjects([]));
     listAdapters().then((a) => {
-      const present = a.filter((x) => x.installed.present);
+      // Ordena pelos providers usados mais recentemente e auto-seleciona o topo.
+      const present = orderBy('provider', a.filter((x) => x.installed.present), (x) => x.id);
       setAdapters(present);
       if (present[0]) setAdapterId(present[0].id);
     }).catch(() => { /* ignore */ });
@@ -91,10 +93,13 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
     if (busy || !adapterId) return;
     setBusy(true);
     setError(null);
+    // Registra as escolhas para ordenar próximas sessões pelo uso mais recente.
+    markUsed('provider', adapterId);
+    if (projectId) markUsed('project', projectId);
     try {
       // O motor stream-json só dirige o `claude`. Para ele, a sessão vira uma
       // miniatura AG-UI na Home (openTerminal decide ficar na Home ou abrir a
-      // conversa). Qualquer outro harness (opencode, gemini, codex, pidev) não
+      // conversa). Qualquer outro harness (opencode, antigravity, codex, pidev) não
       // fala stream-json: roda pelo caminho wrapper (PTY) e abre o terminal.
       if (adapterId === 'claude-code') {
         const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
@@ -178,7 +183,9 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
                     <span className="nsw-caret">▸</span>{t('home.wizard.noProject')}
                   </button>
                 </li>
-                {projects.map((p) => (
+                {/* Ordena por projeto usado mais recentemente, SEM auto-seleção.
+                    "Sem projeto" (topo) e "+ novo projeto" (fundo) ficam fixos. */}
+                {orderBy('project', projects, (p) => p.id).map((p) => (
                   <li key={p.id}>
                     <button className={`nsw-project${projectId === p.id ? ' on' : ''}`}
                       onClick={() => pickProject(p.id)}>
