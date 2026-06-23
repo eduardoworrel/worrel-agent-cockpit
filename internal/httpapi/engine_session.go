@@ -40,8 +40,21 @@ func (s *Server) handleCreateEngineSession(w http.ResponseWriter, r *http.Reques
 		writeErr(w, 500, err.Error())
 		return
 	}
-	// cwd: workspace efêmero do worrel (headless → sem trust prompt).
-	cwd, err := s.deps.Workspace.ScratchWorkspace(sess.ID)
+	// cwd: com projeto, usa o workspace gerenciado do escopo (symlinks p/ as
+	// pastas reais, incluindo o repo clonado); sem projeto, um scratch efêmero.
+	// Em ambos é headless (stream-json) → sem trust prompt.
+	var cwd string
+	if in.ProjectID != "" {
+		proj, perr := s.deps.Store.GetProject(in.ProjectID)
+		if perr != nil {
+			_ = s.deps.Store.EndSession(sess.ID)
+			notFoundOr500(w, perr, "projeto não encontrado")
+			return
+		}
+		cwd, err = s.deps.Workspace.SyncProject(proj.Slug, proj.Dirs)
+	} else {
+		cwd, err = s.deps.Workspace.ScratchWorkspace(sess.ID)
+	}
 	if err != nil {
 		_ = s.deps.Store.EndSession(sess.ID)
 		writeErr(w, 500, err.Error())

@@ -114,7 +114,16 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
 
         {/* Window-chrome: ambiente da sessão (modo + provider). */}
         <div className="nsw-chrome">
-          <span className="nsw-dots" aria-hidden="true"><i /><i /><i /></span>
+          <span className="nsw-dots">
+            <button type="button" className="nsw-dot-close" onClick={onClose}
+              title={t('modal.cancel')} aria-label={t('modal.cancel')}>
+              <svg viewBox="0 0 12 12" width="8" height="8" aria-hidden="true"
+                fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <path d="M3 3l6 6M9 3l-6 6" />
+              </svg>
+            </button>
+            <i aria-hidden="true" /><i aria-hidden="true" />
+          </span>
           <label className="nsw-mode-select" title={t('home.wizard.permModeHint')}>
             <select value={permMode} onChange={(e) => setPermMode(e.target.value as PermissionMode)}
               aria-label={t('home.wizard.permMode')}>
