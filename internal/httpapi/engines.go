@@ -1,8 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
+	"github.com/eduardoworrel/worrel-agent-cockpit/internal/store"
 )
 
 func (s *Server) routesEngines() {
@@ -122,4 +126,64 @@ func (s *Server) routesEngines() {
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	s.mux.HandleFunc("POST /api/engines/{id}/reprocess", func(w http.ResponseWriter, r *http.Request) {
+		if s.deps.Engines == nil {
+			writeErr(w, http.StatusServiceUnavailable, "motores indisponíveis")
+			return
+		}
+		id := r.PathValue("id")
+		var body struct {
+			ProjectID string `json:"project_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		sessions, err := s.deps.Store.UnrunEndedSessions(id, body.ProjectID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// guarda: um lote por motor de cada vez.
+		s.reprocMu.Lock()
+		if s.reproc[id] {
+			s.reprocMu.Unlock()
+			writeErr(w, http.StatusConflict, "reprocessamento já em andamento")
+			return
+		}
+		s.reproc[id] = true
+		s.reprocMu.Unlock()
+
+		go s.runReprocess(id, body.ProjectID, sessions)
+		writeJSON(w, http.StatusAccepted, map[string]int{"total": len(sessions)})
+	})
+}
+
+// runReprocess roda o motor sobre cada sessão não-analisada, marcando engine_runs
+// no sucesso (idempotência) e publicando progresso no bus. Sessão sem erro marca
+// mesmo rendendo 0 (não reprocessa vazio); erro real não marca (retentável).
+func (s *Server) runReprocess(engineID, projectID string, sessions []*store.Session) {
+	defer func() {
+		s.reprocMu.Lock()
+		delete(s.reproc, engineID)
+		s.reprocMu.Unlock()
+	}()
+	total := len(sessions)
+	processed, errors := 0, 0
+	publish := func(typ string, payload map[string]any) {
+		if s.deps.Bus != nil {
+			s.deps.Bus.Publish(bus.Event{Type: typ, Payload: payload})
+		}
+	}
+	for i, sess := range sessions {
+		if err := s.deps.Engines.Run(context.Background(), s.deps.Store, engineID, sess.ProjectID, sess.ID); err != nil {
+			errors++
+		} else {
+			_ = s.deps.Store.MarkEngineRun(engineID, sess.ID)
+			processed++
+		}
+		publish("engine.reprocess.progress", map[string]any{"engine_id": engineID, "done": i + 1, "total": total})
+	}
+	publish("engine.reprocess.done", map[string]any{"engine_id": engineID, "processed": processed, "errors": errors})
 }

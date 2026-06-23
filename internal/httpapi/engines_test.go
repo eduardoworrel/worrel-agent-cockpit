@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/engine/example"
@@ -78,6 +79,49 @@ func TestEngineBacklog(t *testing.T) {
 	srv.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/engines/example-counter/backlog", nil))
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"unanalyzed":1`) {
 		t.Fatalf("backlog: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestEngineReprocessMarksAndCounts(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.CreateProject("App", "")
+	// Cada sessão recebe nº distinto de eventos: o example.Counter gera títulos
+	// distintos ("N eventos…"), evitando que o dedup de sugestão colapse os dois.
+	for i := 0; i < 2; i++ {
+		sess, _ := st.CreateSession(&store.Session{ProjectID: p.ID, Adapter: "claude-code", Mode: "wrapper", Status: "ended"})
+		for j := 0; j <= i; j++ {
+			_ = st.AppendTranscriptEvent(sess.ID, "user", "text", "oi", 0, 0)
+		}
+	}
+	reg := engine.NewRegistry()
+	reg.Register(example.Counter{})
+	srv := New(Deps{Store: st, Engines: reg})
+
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"project_id":""}`)
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/api/engines/example-counter/reprocess", body))
+	if rec.Code != 202 || !strings.Contains(rec.Body.String(), `"total":2`) {
+		t.Fatalf("reprocess: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// a goroutine roda em background; espera o backlog zerar (até 2s).
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		n, _ := st.CountUnrunEndedSessions("example-counter", "")
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("backlog não zerou: %d", n)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	sugg, _ := st.ListSuggestions(p.ID, "")
+	if len(sugg) != 2 {
+		t.Fatalf("sugestões = %d (quer 2)", len(sugg))
 	}
 }
 
