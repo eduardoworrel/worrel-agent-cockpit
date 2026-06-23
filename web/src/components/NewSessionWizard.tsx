@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   listProjects, listAdapters, listSkills, listAgents,
-  createEngineSession, sendPrompt,
+  createEngineSession, createSession, createFreeSession, sendPrompt,
 } from '../api';
 import type { Project, DetectedAdapter, Skill, Agent, Session, PermissionMode } from '../api';
 import NewProjectModal from './NewProjectModal';
@@ -92,11 +92,23 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
     setBusy(true);
     setError(null);
     try {
-      // Toda sessão é dirigida pelo motor stream-json (auto-mode). openTerminal
-      // só decide a navegação: ficar na Home (miniatura) ou abrir a conversa.
-      const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
-      if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
-      onCreated(sess, openTerminal);
+      // O motor stream-json só dirige o `claude`. Para ele, a sessão vira uma
+      // miniatura AG-UI na Home (openTerminal decide ficar na Home ou abrir a
+      // conversa). Qualquer outro harness (opencode, gemini, codex, pidev) não
+      // fala stream-json: roda pelo caminho wrapper (PTY) e abre o terminal.
+      if (adapterId === 'claude-code') {
+        const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
+        if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
+        onCreated(sess, openTerminal);
+        return;
+      }
+      const seedOpts = seed
+        ? (seed.kind === 'skill' ? { skillId: seed.id } : { agentId: seed.id })
+        : undefined;
+      const sess = projectId
+        ? await createSession(projectId, adapterId, seedOpts)
+        : await createFreeSession(adapterId, undefined, seed?.kind === 'skill' ? seed.id : undefined);
+      onCreated(sess, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common.actionFailed'));
       setBusy(false);
