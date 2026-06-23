@@ -40,14 +40,36 @@ import (
 )
 
 // version é estampada no build via -ldflags "-X main.version=<tag>".
+// Builds de produção (npx) sempre recebem uma tag real; builds locais
+// (`go build`/`make run`) ficam com "dev".
 var version = "dev"
+
+// isDev distingue um build local de teste de um build de produção (npx).
+// Usado para isolar porta E data dir, de modo que rodar a versão local com
+// frequência nunca colida nem derrube a instância de prod (que ao dar boot
+// no MESMO data dir encerraria as sessões wrapper vivas como órfãs).
+func isDev() bool { return version == "dev" }
+
+const (
+	prodPort = 7717 // npx / instalado
+	devPort  = 7787 // build local de teste — porta totalmente separada
+)
+
+// defaultAddr escolhe a porta padrão conforme o tipo de build.
+func defaultAddr() string {
+	port := prodPort
+	if isDev() {
+		port = devPort
+	}
+	return fmt.Sprintf("127.0.0.1:%d", port)
+}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "hook" {
 		runHookCmd(os.Args[2:])
 		return
 	}
-	addr := flag.String("addr", "127.0.0.1:7717", "endereço de escuta")
+	addr := flag.String("addr", defaultAddr(), "endereço de escuta")
 	dataDir := flag.String("data", defaultDataDir(), "diretório de dados (~/.worrel)")
 	portFlag := flag.Int("port", 0, "porta (atalho; sobrepõe a porta de --addr)")
 	noOpen := flag.Bool("no-open", false, "não abrir o navegador automaticamente")
@@ -197,11 +219,18 @@ func main() {
 }
 
 func defaultDataDir() string {
+	// Build local de teste usa um data dir separado (~/.worrel-dev): assim o
+	// boot do build local NÃO encerra as sessões wrapper vivas da instância de
+	// prod (que compartilhariam o mesmo banco em ~/.worrel).
+	dir := ".worrel"
+	if isDev() {
+		dir = ".worrel-dev"
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".worrel"
+		return dir
 	}
-	return filepath.Join(home, ".worrel")
+	return filepath.Join(home, dir)
 }
 
 // runJanitor varre transcripts expirados no start e a cada 6h (spec §11);

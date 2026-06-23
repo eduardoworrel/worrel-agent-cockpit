@@ -86,8 +86,8 @@ export default function SessionStream() {
       <div className="sstream-body" ref={bodyRef}>
         {history.length === 0 && <div className="sstream-empty">{t('home.ix.working')}</div>}
         {groupHistory(history).map((g, i) =>
-          g.kind === 'console'
-            ? <ConsoleBlock key={i} rows={g.rows} />
+          g.kind === 'cmd'
+            ? <CommandCard key={i} cmd={g.cmd} />
             : <ChatLine key={i} line={g.line} />,
         )}
         {state === 'working' && history.length > 0 && (
@@ -166,27 +166,31 @@ export default function SessionStream() {
 // O backend emite duas formas de linha "tool":
 //   • chamada   →  "<nome> <json-dos-argumentos>"   (ex.: Bash {"command":"go test"})
 //   • resultado →  "→ <stdout truncado>"
-// Linhas tool consecutivas pertencem ao MESMO transcript de shell, então as
-// agrupamos num único bloco-console escuro embutido na conversa em papel.
+// Cada CHAMADA vira um card de comando isolado; os resultados que a seguem
+// (até a próxima chamada) ficam acoplados a ele como saída.
 // ─────────────────────────────────────────────────────────────────────────
 
-type ConsoleRow =
-  | { kind: 'cmd'; tool: string; args: string }
-  | { kind: 'out'; text: string };
+interface Cmd { tool: string; args: string; out: string[]; }
 
 type Group =
-  | { kind: 'console'; rows: ConsoleRow[] }
+  | { kind: 'cmd'; cmd: Cmd }
   | { kind: 'line'; line: HistoryLine };
 
-// groupHistory funde linhas tool adjacentes num grupo "console" e deixa
-// você/IA/sistema como linhas avulsas.
+// groupHistory transforma cada chamada de ferramenta num card de comando
+// próprio (com sua saída acoplada) e deixa você/IA/sistema como linhas avulsas.
 function groupHistory(history: HistoryLine[]): Group[] {
   const out: Group[] = [];
   for (const line of history) {
     if (line.role === 'tool') {
+      const row = parseToolLine(line.text);
       const last = out[out.length - 1];
-      const rows = last?.kind === 'console' ? last.rows : (out.push({ kind: 'console', rows: [] }), (out[out.length - 1] as { rows: ConsoleRow[] }).rows);
-      rows.push(parseToolLine(line.text));
+      if (row.kind === 'out') {
+        // saída acopla ao último comando; se não houver, vira um card de saída solta.
+        if (last?.kind === 'cmd') last.cmd.out.push(row.text);
+        else out.push({ kind: 'cmd', cmd: { tool: '', args: '', out: [row.text] } });
+      } else {
+        out.push({ kind: 'cmd', cmd: { tool: row.tool, args: row.args, out: [] } });
+      }
     } else {
       out.push({ kind: 'line', line });
     }
@@ -194,7 +198,11 @@ function groupHistory(history: HistoryLine[]): Group[] {
   return out;
 }
 
-function parseToolLine(text: string): ConsoleRow {
+type ParsedRow =
+  | { kind: 'cmd'; tool: string; args: string }
+  | { kind: 'out'; text: string };
+
+function parseToolLine(text: string): ParsedRow {
   if (text.startsWith('→')) return { kind: 'out', text: text.replace(/^→\s*/, '') };
   const sp = text.indexOf(' ');
   const tool = sp === -1 ? text : text.slice(0, sp);
@@ -220,31 +228,77 @@ const TOOL_META: Record<string, { verb: string; accent: string }> = {
   TodoWrite: { verb: 'todo', accent: 'amber' },
 };
 
-function toolMeta(name: string) {
-  return TOOL_META[name] ?? { verb: name.toLowerCase(), accent: 'cream' };
+function toolMeta(name: string): { verb: string; accent: string } {
+  if (TOOL_META[name]) return TOOL_META[name];
+  // Ferramentas MCP: "mcp__servidor__acao" → mostramos só a ação, em rosa.
+  if (name.startsWith('mcp__')) {
+    const seg = name.split('__');
+    return { verb: seg[seg.length - 1] || name, accent: 'pink' };
+  }
+  return { verb: name.toLowerCase(), accent: 'cream' };
+}
+
+// Campos que costumam carregar a "alma" de um comando — usados quando a
+// ferramenta não é uma das conhecidas, para nunca despejar o JSON inteiro.
+const PREFERRED_KEYS = [
+  'command', 'cmd', 'query', 'prompt', 'pattern', 'url',
+  'file_path', 'path', 'description', 'message', 'text', 'name', 'title', 'content',
+];
+
+// trunca valores longos para caberem numa linha de comando.
+function clip(v: string, max = 240): string {
+  const one = v.replace(/\s+/g, ' ').trim();
+  return one.length > max ? one.slice(0, max) + '…' : one;
+}
+
+// rawField extrai o valor de uma chave string direto do texto JSON, mesmo que
+// ele esteja TRUNCADO (o backend corta linhas longas de tool-call e o
+// JSON.parse falha). Sem isso, comandos viravam JSON cru na tela.
+function rawField(rest: string, keys: string[]): string {
+  for (const k of keys) {
+    const m = rest.match(new RegExp(`"${k}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"?`));
+    if (m && m[1]) {
+      // desescapa as sequências JSON (\", \\, \n…) de forma segura.
+      try { return clip(JSON.parse(`"${m[1].replace(/\\$/, '')}"`)); }
+      catch { return clip(m[1].replace(/\\(["\\/])/g, '$1')); }
+    }
+  }
+  return '';
 }
 
 // formatArgs extrai a "cauda" legível de cada comando: o comando real do Bash,
-// o caminho dos arquivos, o padrão do grep… Cai no JSON cru se não reconhecer.
+// o caminho dos arquivos, o padrão do grep… Para tools desconhecidas, escolhe
+// o campo mais relevante do JSON em vez de despejar o objeto cru.
 function formatArgs(tool: string, rest: string): string {
   if (!rest) return '';
   let obj: Record<string, unknown> | null = null;
-  try { obj = JSON.parse(rest); } catch { /* truncado/inválido → mostra cru */ }
-  if (!obj || typeof obj !== 'object') return rest;
+  try { obj = JSON.parse(rest); } catch { /* truncado/inválido → extrai por regex abaixo */ }
+  if (!obj || typeof obj !== 'object') {
+    // JSON truncado/inválido: tenta puxar o campo relevante do texto cru antes
+    // de desistir, para nunca despejar o objeto na tela.
+    const keys = tool === 'Bash' ? ['command', ...PREFERRED_KEYS] : PREFERRED_KEYS;
+    return rawField(rest, keys) || clip(rest);
+  }
   const s = (k: string) => (typeof obj![k] === 'string' ? (obj![k] as string) : '');
   switch (tool) {
-    case 'Bash': return s('command') || rest;
+    case 'Bash': return clip(s('command') || rest);
     case 'Read': case 'Write': case 'Edit': case 'MultiEdit': case 'NotebookEdit':
       return shortPath(s('file_path') || s('path') || s('notebook_path'));
     case 'Grep': return [s('pattern'), s('path') && `in ${shortPath(s('path'))}`].filter(Boolean).join('  ');
     case 'Glob': return s('pattern');
-    case 'Task': case 'Agent': return s('description') || s('subagent_type');
-    case 'WebFetch': case 'WebSearch': return s('url') || s('query');
+    case 'Task': case 'Agent': return clip(s('description') || s('subagent_type'));
+    case 'WebFetch': case 'WebSearch': return clip(s('url') || s('query'));
     default: {
+      // 1) tenta o primeiro campo "relevante" presente.
+      for (const k of PREFERRED_KEYS) {
+        const v = s(k);
+        if (v) return (k === 'file_path' || k === 'path') ? shortPath(v) : clip(v);
+      }
+      // 2) senão, compacta só os campos escalares como chave=valor (sem aninhados).
       const parts = Object.entries(obj)
-        .filter(([, v]) => typeof v !== 'object')
-        .map(([k, v]) => `${k}=${String(v)}`);
-      return parts.join(' ') || rest;
+        .filter(([, v]) => v !== null && typeof v !== 'object')
+        .map(([k, v]) => `${k}=${clip(String(v), 60)}`);
+      return parts.length ? clip(parts.join(' ')) : '';
     }
   }
 }
@@ -256,29 +310,22 @@ function shortPath(p: string): string {
   return parts.length > 4 ? '…/' + parts.slice(-3).join('/') : p;
 }
 
-// ConsoleBlock desenha o transcript de shell: barra-título com os pontos do
-// terminal, e cada comando como `$ verbo argumentos` com seu stdout abaixo.
-function ConsoleBlock({ rows }: { rows: ConsoleRow[] }) {
-  const cmds = rows.filter((r) => r.kind === 'cmd').length;
+// CommandCard desenha UM comando isolado: cabeçalho com o verbo colorido e o
+// argumento, e a saída (se houver) num painel acoplado abaixo.
+function CommandCard({ cmd }: { cmd: Cmd }) {
+  const meta = cmd.tool ? toolMeta(cmd.tool) : { verb: '', accent: 'cream' };
   return (
-    <div className="term-block">
-      <div className="term-bar">
-        <span className="term-dots" aria-hidden="true"><i /><i /><i /></span>
-        <span className="term-bar-label">shell · {cmds} {cmds === 1 ? 'comando' : 'comandos'}</span>
-      </div>
-      <div className="term-body">
-        {rows.map((r, i) =>
-          r.kind === 'cmd' ? (
-            <div className="term-cmd" key={i}>
-              <span className="term-sigil" aria-hidden="true">$</span>
-              <span className={`term-verb t-${toolMeta(r.tool).accent}`}>{toolMeta(r.tool).verb}</span>
-              {r.args && <span className="term-args">{r.args}</span>}
-            </div>
-          ) : (
-            <pre className="term-out" key={i}>{r.text}</pre>
-          ),
-        )}
-      </div>
+    <div className={`cmd-card cmd-${meta.accent}`}>
+      {cmd.tool && (
+        <div className="cmd-head">
+          <span className="cmd-sigil" aria-hidden="true">$</span>
+          <span className="cmd-verb">{meta.verb}</span>
+          {cmd.args && <span className="cmd-args">{cmd.args}</span>}
+        </div>
+      )}
+      {cmd.out.length > 0 && (
+        <pre className="cmd-out">{cmd.out.join('\n')}</pre>
+      )}
     </div>
   );
 }
