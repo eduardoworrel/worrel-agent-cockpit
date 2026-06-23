@@ -283,9 +283,9 @@ func TestTrackContextPublishesEvents(t *testing.T) {
 }
 
 func TestDeriveTitlePicksFirstUserMessage(t *testing.T) {
-	events := []adapter.TranscriptEvent{
-		{Role: "assistant", Content: "ok"},
-		{Role: "user", Content: "Ajustar o tema do terminal para acompanhar a página"},
+	events := []*store.TranscriptEvent{
+		{Role: "ai", Content: "ok"},
+		{Role: "you", Content: "Ajustar o tema do terminal para acompanhar a página"},
 	}
 	got := deriveTitle(events)
 	want := "Ajustar o tema do terminal para acompanhar a página"

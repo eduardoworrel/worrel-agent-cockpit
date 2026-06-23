@@ -39,11 +39,12 @@ type session struct {
 	cmd     *exec.Cmd
 	cleanup func() error
 
-	mu     sync.Mutex
-	raw    []byte
-	subs   map[int]chan []byte
-	nextID int
-	closed bool
+	mu      sync.Mutex
+	raw     []byte
+	subs    map[int]chan []byte
+	nextID  int
+	closed  bool
+	capture *ptyCapture // observação própria do stream → transcript_events
 }
 
 // Manager gere sessões PTY ativas.
@@ -93,6 +94,11 @@ func (m *Manager) Spawn(sessionID string, spec adapter.CmdSpec) error {
 		id: sessionID, ptmx: ptmx, cmd: cmd, cleanup: spec.Cleanup,
 		subs: map[int]chan []byte{},
 	}
+	// Captura própria do PTY: cada turno fechado vira um transcript_event
+	// (Kind="pty"). É a fonte do handoff de sessões PTY — sem reler o CLI.
+	s.capture = newPTYCapture(func(role, content string) {
+		_ = m.store.AppendTranscriptEventRich(sessionID, role, "pty", content, "", 0, 0)
+	})
 	m.mu.Lock()
 	m.sessions[sessionID] = s
 	m.mu.Unlock()
@@ -107,6 +113,9 @@ func (m *Manager) readLoop(s *session) {
 		n, err := s.ptmx.Read(buf)
 		if n > 0 {
 			chunk := append([]byte(nil), buf[:n]...)
+			if s.capture != nil {
+				s.capture.onOutput(chunk) // observação própria → transcript_events
+			}
 			s.mu.Lock()
 			s.raw = append(s.raw, chunk...)
 			// ring/tail buffer: mantém só os últimos maxRawBytes.
@@ -139,6 +148,9 @@ func (m *Manager) onExit(s *session) {
 		return
 	}
 	s.closed = true
+	if s.capture != nil {
+		s.capture.flush() // fecha turnos pendentes antes de encerrar
+	}
 	// cauda do output do PTY (stdout+stderr do CLI) ANTES de fechar: é a única
 	// pista do porquê do encerramento — sem isto, o fim da sessão fica "sem
 	// explicação" (o exit code sozinho raramente diz o motivo).
@@ -292,6 +304,9 @@ func (m *Manager) Write(sessionID string, p []byte) error {
 	if err != nil {
 		return err
 	}
+	if s.capture != nil {
+		s.capture.onInput(p) // entrada do usuário → turno "you" no transcript
+	}
 	_, err = s.ptmx.Write(p)
 	return err
 }
@@ -392,9 +407,11 @@ const maxTitleLen = 64
 
 // deriveTitle extrai um rótulo conciso do primeiro recado do usuário: primeira
 // linha não-vazia, sem marcação markdown, truncada. Devolve "" se nada útil.
-func deriveTitle(events []adapter.TranscriptEvent) string {
+// Aceita os papéis de usuário usados no store ("you", a captura do PTY) e o
+// legado ("user").
+func deriveTitle(events []*store.TranscriptEvent) string {
 	for _, e := range events {
-		if e.Role != "user" {
+		if e.Role != "you" && e.Role != "user" {
 			continue
 		}
 		for _, raw := range strings.Split(e.Content, "\n") {
@@ -420,16 +437,17 @@ func deriveTitle(events []adapter.TranscriptEvent) string {
 }
 
 // trackTitle deriva e persiste o título da sessão a partir do primeiro recado
-// do usuário no transcript. Roda a cada poll até conseguir gravar (guarda em
+// do usuário no transcript — lendo NOSSOS transcript_events (a captura do PTY),
+// não o arquivo do CLI. Roda a cada poll até conseguir gravar (guarda em
 // titled), então publica session.titled para a UI recarregar a lista.
-func (m *Manager) trackTitle(sessID string, ref adapter.SessionRef, ad adapter.Adapter) {
+func (m *Manager) trackTitle(sessID string) {
 	m.mu.Lock()
 	done := m.titled[sessID]
 	m.mu.Unlock()
 	if done {
 		return
 	}
-	events, err := ad.ReadTranscript(ref)
+	events, err := m.store.ListTranscriptEvents(sessID)
 	if err != nil || len(events) == 0 {
 		return
 	}
@@ -489,21 +507,41 @@ func (m *Manager) SpawnWithAdapter(sessionID string, spec adapter.CmdSpec, ad ad
 	}
 	go func() {
 		m.trackContext(sessionID, ref, ad) // medição imediata no spawn
-		m.trackTitle(sessionID, ref, ad)
-		m.trackTranscript(sessionID, ref, ad)
+		m.trackTitle(sessionID)
 		m.trackAwaiting(sessionID, ref, ad)
-		ticker := time.NewTicker(contextPollInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			if !m.IsRunning(sessionID) {
-				m.trackTranscript(sessionID, ref, ad) // flush final ao encerrar
-				return
+		// flush periódico da captura própria do PTY: fecha turnos "ai" que
+		// ficaram quietos, para o handoff ver o conteúdo sem esperar o usuário.
+		quiet := time.NewTicker(quietFlushInterval)
+		defer quiet.Stop()
+		ctxTick := time.NewTicker(contextPollInterval)
+		defer ctxTick.Stop()
+		for {
+			select {
+			case <-quiet.C:
+				if !m.IsRunning(sessionID) {
+					return
+				}
+				m.flushCapture(sessionID)
+				m.trackTitle(sessionID)
+			case <-ctxTick.C:
+				if !m.IsRunning(sessionID) {
+					return
+				}
+				m.trackContext(sessionID, ref, ad)
+				m.trackAwaiting(sessionID, ref, ad)
 			}
-			m.trackContext(sessionID, ref, ad)
-			m.trackTitle(sessionID, ref, ad)
-			m.trackTranscript(sessionID, ref, ad)
-			m.trackAwaiting(sessionID, ref, ad)
 		}
 	}()
 	return nil
+}
+
+// flushCapture fecha o turno "ai" pendente da captura do PTY (flush por quietude).
+func (m *Manager) flushCapture(sessionID string) {
+	s, err := m.get(sessionID)
+	if err != nil || s.capture == nil {
+		return
+	}
+	s.capture.mu.Lock()
+	s.capture.flushAILocked()
+	s.capture.mu.Unlock()
 }

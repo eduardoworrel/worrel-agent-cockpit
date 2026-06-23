@@ -19,10 +19,12 @@ type Summarizer interface {
 	Summarize(ctx context.Context, prompt string) (string, error)
 }
 
-// LiveReader lê o transcript direto do arquivo do CLI. Sessões in-app (wrapper)
-// NÃO têm seu transcript ingerido em transcript_events (só o importer de
-// histórico externo faz isso); logo o handoff de uma sessão viva precisa ler o
-// .jsonl ao vivo. *adapter.Adapter satisfaz esta interface (tem ReadTranscript).
+// LiveReader lê o transcript direto do arquivo do CLI. Desde o P2, sessões PTY
+// (wrapper) persistem sua PRÓPRIA observação em transcript_events e sessões de
+// motor (stream-json) gravam seu histórico — então este fallback só é exercido
+// por sessões antigas sem nenhum evento gravado. Mantido como defesa, NUNCA como
+// caminho normal: o handoff lê transcript_events primeiro.
+// *adapter.Adapter satisfaz esta interface (tem ReadTranscript).
 type LiveReader interface {
 	ReadTranscript(ref adapter.SessionRef) ([]adapter.TranscriptEvent, error)
 }
