@@ -55,6 +55,7 @@ type acpSession struct {
 	cmd    *exec.Cmd
 	enc    *json.Encoder
 	stdinW interface{ Close() error }
+	writeFn func(any) error // nil = usa o encoder real
 
 	onChange func(string)
 	persist  func(role, text string)
@@ -161,8 +162,17 @@ func (s *acpSession) SendPrompt(text string) error {
 // onPromptResult trata o fim de turno (resultado de session/prompt).
 func (s *acpSession) onPromptResult(stopReason string) {
 	s.mu.Lock()
+	msg := s.message
+	var line agui.HistoryLine
+	if strings.TrimSpace(msg) != "" {
+		line = agui.HistoryLine{Role: "ai", Text: msg}
+		s.history = append(s.history, line)
+	}
 	s.state = agui.StateAwaiting
 	s.mu.Unlock()
+	if line.Text != "" {
+		s.persistLine(line)
+	}
 	s.notify()
 }
 
@@ -175,12 +185,64 @@ func (s *acpSession) Close() {
 	}
 }
 
-// Respond é stub nesta task (só compila); a Task 6 implementa de verdade.
-func (s *acpSession) Respond(allow bool) error { return nil }
+// Respond responde a session/request_permission selecionando a opção allow/reject.
+func (s *acpSession) Respond(allow bool) error {
+	s.mu.Lock()
+	id := s.permID
+	opts := s.permOpts
+	s.interrupt = nil
+	s.permID = 0
+	s.permOpts = nil
+	if allow {
+		s.state = agui.StateWorking
+	}
+	s.mu.Unlock()
+	s.notify()
+	if id == 0 {
+		return fmt.Errorf("nenhuma permissão pendente")
+	}
+	pick := selectPermOption(opts, allow)
+	return s.write(map[string]any{
+		"jsonrpc": "2.0", "id": id,
+		"result": map[string]any{
+			"outcome": map[string]any{"outcome": "selected", "optionId": pick},
+		},
+	})
+}
+
+// selectPermOption escolhe o optionId allow/reject pelo `kind` (allow_once /
+// reject_once), com fallback por substring no id e, por fim, a 1ª/última opção.
+func selectPermOption(opts []acpPermOption, allow bool) string {
+	wantKind := "reject_once"
+	wantSub := "reject"
+	if allow {
+		wantKind, wantSub = "allow_once", "allow"
+	}
+	for _, o := range opts {
+		if o.Kind == wantKind {
+			return o.OptionID
+		}
+	}
+	for _, o := range opts {
+		if strings.Contains(strings.ToLower(o.OptionID), wantSub) {
+			return o.OptionID
+		}
+	}
+	if len(opts) == 0 {
+		return ""
+	}
+	if allow {
+		return opts[0].OptionID
+	}
+	return opts[len(opts)-1].OptionID
+}
 
 // --- wire JSON-RPC ---
 
 func (s *acpSession) write(v any) error {
+	if s.writeFn != nil {
+		return s.writeFn(v)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.enc.Encode(v)
@@ -297,6 +359,51 @@ func (s *acpSession) persistLine(l agui.HistoryLine) {
 	}
 }
 
-// handleToolCall e handlePermissionRequest: stubs preenchidos na Task 6.
-func (s *acpSession) handleToolCall(u map[string]any)         {}
-func (s *acpSession) handlePermissionRequest(msg map[string]any) {}
+func (s *acpSession) handleToolCall(u map[string]any) {
+	name, _ := u["title"].(string)
+	if name == "" {
+		name, _ = u["toolCallId"].(string)
+	}
+	sum := summarizeInput(u["rawInput"])
+	line := agui.HistoryLine{Role: "tool", Text: strings.TrimSpace(name + " " + sum)}
+	s.mu.Lock()
+	// tool_call_update do mesmo id não duplica: só registramos no "tool_call".
+	if u["sessionUpdate"] == "tool_call" {
+		s.toolCalls = append(s.toolCalls, agui.ToolCall{Name: name, Summary: sum})
+		s.history = append(s.history, line)
+	}
+	s.mu.Unlock()
+	if u["sessionUpdate"] == "tool_call" {
+		s.persistLine(line)
+	}
+	s.notify()
+}
+
+func (s *acpSession) handlePermissionRequest(msg map[string]any) {
+	idF, _ := msg["id"].(float64)
+	params, _ := msg["params"].(map[string]any)
+	tc, _ := params["toolCall"].(map[string]any)
+	tool, _ := tc["title"].(string)
+	var opts []acpPermOption
+	if raw, ok := params["options"].([]any); ok {
+		for _, o := range raw {
+			om, _ := o.(map[string]any)
+			opts = append(opts, acpPermOption{
+				OptionID: asString(om["optionId"]),
+				Kind:     asString(om["kind"]),
+			})
+		}
+	}
+	s.mu.Lock()
+	s.permID = int(idF)
+	s.permOpts = opts
+	s.interrupt = &agui.Interrupt{
+		RequestID: fmt.Sprintf("%d", int(idF)),
+		Kind:      agui.KindPermission,
+		Prompt:    "Permitir " + tool + "?",
+		Detail:    summarizeInput(tc["rawInput"]),
+	}
+	s.state = agui.StateAwaiting
+	s.mu.Unlock()
+	s.notify()
+}

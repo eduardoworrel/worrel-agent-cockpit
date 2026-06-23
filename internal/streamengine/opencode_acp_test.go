@@ -65,3 +65,98 @@ func TestACPCallUnblocksOnDisconnect(t *testing.T) {
 		t.Fatal("canal deveria estar fechado após drainPending")
 	}
 }
+
+func TestACPToolCallRecorded(t *testing.T) {
+	s := newTestACP()
+	s.handleUpdate(map[string]any{
+		"sessionUpdate": "tool_call",
+		"toolCallId":    "tc1",
+		"title":         "bash",
+		"rawInput":      map[string]any{"command": "echo hi"},
+		"status":        "pending",
+	})
+	tcs := s.Snapshot().ToolCalls
+	if len(tcs) != 1 || tcs[0].Name != "bash" {
+		t.Fatalf("ToolCalls = %+v, quer 1 com Name=bash", tcs)
+	}
+}
+
+func TestACPPermissionRequestRaisesInterrupt(t *testing.T) {
+	s := newTestACP()
+	s.handlePermissionRequest(map[string]any{
+		"id": float64(7),
+		"params": map[string]any{
+			"toolCall": map[string]any{"title": "bash"},
+			"options": []any{
+				map[string]any{"optionId": "allow-once", "kind": "allow_once"},
+				map[string]any{"optionId": "reject-once", "kind": "reject_once"},
+			},
+		},
+	})
+	snap := s.Snapshot()
+	if snap.Interrupt == nil || snap.Interrupt.Kind != agui.KindPermission {
+		t.Fatalf("quer Interrupt de permissão, veio %+v", snap.Interrupt)
+	}
+	if snap.State != agui.StateAwaiting {
+		t.Fatalf("State = %q, quer awaiting", snap.State)
+	}
+}
+
+func TestACPRespondClearsInterrupt(t *testing.T) {
+	s := newTestACP()
+	s.pending = map[int]chan map[string]any{}
+	// simula permissão pendente
+	s.permID = 7
+	s.permOpts = []acpPermOption{{OptionID: "allow-once", Kind: "allow_once"}, {OptionID: "reject-once", Kind: "reject_once"}}
+	s.interrupt = &agui.Interrupt{Kind: agui.KindPermission}
+	// captura o que seria enviado: substituímos enc por um buffer via test hook
+	sent := captureACPWrite(s)
+	if err := s.Respond(true); err != nil {
+		t.Fatal(err)
+	}
+	if s.Snapshot().Interrupt != nil {
+		t.Fatal("Interrupt deveria ser limpo após Respond")
+	}
+	if got := sent.lastOptionID(); got != "allow-once" {
+		t.Fatalf("optionId enviado = %q, quer allow-once", got)
+	}
+}
+
+func TestACPEndTurnPersistsMessage(t *testing.T) {
+	s := newTestACP()
+	var persisted []string
+	s.persist = func(role, text string) { persisted = append(persisted, role+":"+text) }
+	s.handleUpdate(map[string]any{"sessionUpdate": "agent_message_chunk", "messageId": "m1",
+		"content": map[string]any{"type": "text", "text": "done"}})
+	s.onPromptResult("end_turn")
+	if len(persisted) != 1 || persisted[0] != "ai:done" {
+		t.Fatalf("persisted = %v, quer [ai:done]", persisted)
+	}
+}
+
+type acpWriteCapture struct{ msgs []map[string]any }
+
+func (c *acpWriteCapture) lastOptionID() string {
+	for i := len(c.msgs) - 1; i >= 0; i-- {
+		if r, ok := c.msgs[i]["result"].(map[string]any); ok {
+			if o, ok := r["outcome"].(map[string]any); ok {
+				if id, ok := o["optionId"].(string); ok {
+					return id
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// captureACPWrite injeta um writer de teste no acpSession via o campo writeFn.
+func captureACPWrite(s *acpSession) *acpWriteCapture {
+	c := &acpWriteCapture{}
+	s.writeFn = func(v any) error {
+		if m, ok := v.(map[string]any); ok {
+			c.msgs = append(c.msgs, m)
+		}
+		return nil
+	}
+	return c
+}
