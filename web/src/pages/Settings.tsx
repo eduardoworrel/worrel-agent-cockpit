@@ -5,6 +5,7 @@ import EngineCard, { type EngineItem } from '../components/EngineCard';
 import HomeEngineConfig from '../components/HomeEngineConfig';
 import OnboardingWizard from '../components/OnboardingWizard';
 import { getInteractionStyle, setInteractionStyle } from '../interactionStyle';
+import { useEvents } from '../useEvents';
 import type { InteractionStyle } from '../interactionStyle';
 
 type EngineLogEntry = { id: number; engine_id: string; trigger: string; suggestions: number; detail: string; input?: string; output?: string; created_at: number };
@@ -20,6 +21,16 @@ export default function Settings() {
 
   // Config dos motores de destilação (mesma fonte do wizard de onboarding).
   const [engines, setEngines] = useState<EngineItem[]>([]);
+  const [backlog, setBacklog] = useState<Record<string, number>>({});
+  const [reproc, setReproc] = useState<Record<string, { done: number; total: number }>>({});
+  const loadBacklog = (id: string) =>
+    fetch(`/api/engines/${id}/backlog`).then(r => r.json())
+      .then(d => setBacklog(b => ({ ...b, [id]: d.unanalyzed }))).catch(() => {});
+  const reprocessEngine = (id: string) =>
+    fetch(`/api/engines/${id}/reprocess`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: '' }),
+    }).then(r => r.json()).then(d => setReproc(p => ({ ...p, [id]: { done: 0, total: d.total } }))).catch(() => {});
   const [showWizard, setShowWizard] = useState(false);
   const [tab, setTab] = useState('geral');
   const [activity, setActivity] = useState<EngineLogEntry[]>([]);
@@ -42,6 +53,18 @@ export default function Settings() {
     }).then(() => { setTab('atividade'); loadActivity(); }).catch(() => {});
 
   useEffect(() => { loadEngines(); }, []);
+  useEffect(() => { engines.forEach(e => loadBacklog(e.spec.id)); }, [engines.length]);
+
+  useEvents((ev) => {
+    const p = ev.payload as { engine_id?: string; done?: number; total?: number } | null;
+    if (!p?.engine_id) return;
+    if (ev.type === 'engine.reprocess.progress') {
+      setReproc(s => ({ ...s, [p.engine_id!]: { done: p.done ?? 0, total: p.total ?? 0 } }));
+    } else if (ev.type === 'engine.reprocess.done') {
+      setReproc(s => { const n = { ...s }; delete n[p.engine_id!]; return n; });
+      loadBacklog(p.engine_id!);
+    }
+  });
   useEffect(() => { if (tab === 'atividade') loadActivity(); }, [tab]);
 
   // Primeiro uso: abre o wizard automaticamente (sem projetos/sessões e ainda não visto).
@@ -197,7 +220,9 @@ export default function Settings() {
       )}
 
       {engine && (
-        <EngineCard item={engine} setConfig={setEngineConfig} onRun={runEngine} />
+        <EngineCard item={engine} setConfig={setEngineConfig} onRun={runEngine}
+          backlog={backlog[engine.spec.id]} reprocess={reproc[engine.spec.id] ?? null}
+          onReprocess={reprocessEngine} />
       )}
 
       {tab === 'atividade' && (

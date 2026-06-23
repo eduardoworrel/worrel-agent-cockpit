@@ -59,10 +59,13 @@ function ModelPicker({ harness, current, onSelect }: {
   )
 }
 
-export default function EngineCard({ item, setConfig, onRun }: {
+export default function EngineCard({ item, setConfig, onRun, backlog, reprocess, onReprocess }: {
   item: EngineItem
   setConfig: (id: string, key: string, value: string) => void
   onRun?: (id: string) => void
+  backlog?: number
+  reprocess?: { done: number; total: number } | null
+  onReprocess?: (id: string) => void
 }) {
   const { spec, config } = item
   const enabled = config['__enabled'] === 'true'
@@ -90,6 +93,7 @@ export default function EngineCard({ item, setConfig, onRun }: {
         {onRun && (
           <div className="ec-run">
             <button type="button" className="btn btn-primary" onClick={() => onRun(spec.id)}>▶ Rodar agora</button>
+            <i className="ec-info" data-tip="'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada.">ⓘ</i>
             <span>Dispara o motor uma vez agora (o modo “sob demanda” usa este botão).</span>
           </div>
         )}
@@ -124,6 +128,31 @@ export default function EngineCard({ item, setConfig, onRun }: {
           </div>
         ))}
       </fieldset>
+
+      {onReprocess && (
+        <div className="ec-history">
+          <div className="ec-history-row">
+            <button type="button" className="btn btn-secondary"
+              disabled={!!reprocess || (backlog ?? 0) === 0}
+              onClick={() => onReprocess(spec.id)}>
+              {reprocess
+                ? `Analisando… ${reprocess.done}/${reprocess.total}`
+                : (backlog ?? 0) === 0
+                  ? 'Tudo em dia ✓'
+                  : `▶ Analisar histórico (${backlog})`}
+            </button>
+            <i className="ec-info" data-tip="'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada.">ⓘ</i>
+          </div>
+          {reprocess && reprocess.total > 0 && (
+            <div className="ec-progress"><div className="ec-progress-bar" style={{ width: `${Math.round(100 * reprocess.done / reprocess.total)}%` }} /></div>
+          )}
+          <span className="ec-history-hint">
+            {(backlog ?? 0) === 0
+              ? 'Nenhuma sessão encerrada pendente para este motor.'
+              : `${backlog} sessões encerradas ainda não analisadas por este motor.`}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -166,5 +195,10 @@ const EC_CSS = `
 .ec-textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1.5px solid var(--line-strong, #3a3a3a);
   background: var(--surface-sunk, rgba(255,255,255,0.02)); color: inherit; font-family: var(--mono, monospace); font-size: 0.8rem; line-height: 1.5; resize: vertical; }
 .ec-textarea:focus { outline: none; border-color: var(--orange, #e08a3c); }
+.ec-history { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line-strong, #3a3a3a); }
+.ec-history-row { display: flex; align-items: center; gap: 8px; }
+.ec-history-hint { display: block; margin-top: 6px; font-size: 0.8rem; color: var(--muted, #999); }
+.ec-progress { margin-top: 8px; height: 6px; border-radius: 999px; background: var(--surface-sunk, rgba(255,255,255,0.06)); overflow: hidden; }
+.ec-progress-bar { height: 100%; background: var(--orange, #e08a3c); transition: width .2s ease; }
 @media (max-width: 640px) { .ec-inline { grid-template-columns: 1fr; align-items: start; } }
 `
