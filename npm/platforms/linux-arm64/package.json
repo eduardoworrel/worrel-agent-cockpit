@@ -1,6 +1,6 @@
 {
   "name": "@worrel/linux-arm64",
-  "version": "0.5.10",
+  "version": "0.5.12",
   "description": "Binário do Worrel para Linux arm64.",
   "os": [
     "linux"

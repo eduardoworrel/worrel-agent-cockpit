@@ -86,11 +86,11 @@ func TestExtractOpencodeText(t *testing.T) {
 }
 
 func TestBuildRunArgsModel(t *testing.T) {
-	args := buildRunArgs("oi", adapter.HeadlessOpts{})
+	args := buildRunArgs(adapter.HeadlessOpts{})
 	if slices.Contains(args, "--model") {
 		t.Fatalf("sem Model não deve incluir --model: %v", args)
 	}
-	args = buildRunArgs("oi", adapter.HeadlessOpts{Model: "anthropic/claude-sonnet-4-6"})
+	args = buildRunArgs(adapter.HeadlessOpts{Model: "anthropic/claude-sonnet-4-6"})
 	i := slices.Index(args, "--model")
 	if i < 0 || i+1 >= len(args) || args[i+1] != "anthropic/claude-sonnet-4-6" {
 		t.Fatalf("--model <model> ausente/incorreto: %v", args)

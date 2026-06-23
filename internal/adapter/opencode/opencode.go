@@ -86,10 +86,13 @@ func (a *Adapter) BuildInteractive(opts adapter.SpawnOpts) (adapter.CmdSpec, err
 	return spec, nil
 }
 
-// buildRunArgs monta os argumentos de `opencode run`. O modelo (opts.Model),
+// buildRunArgs monta os argumentos de `opencode run`. O prompt NÃO entra aqui:
+// ele vai por stdin (ver RunHeadless). Prompts de destilação podem passar de
+// 1 MB e, como argv, estouram o ARG_MAX — no macOS o posix_spawn devolve EINVAL
+// ("fork/exec: invalid argument"), travando o motor em loop. O modelo (opts.Model),
 // quando não-vazio, vira `--model <model>` (formato "provider/model").
-func buildRunArgs(prompt string, opts adapter.HeadlessOpts) []string {
-	args := []string{"run", prompt, "--format", "json"}
+func buildRunArgs(opts adapter.HeadlessOpts) []string {
+	args := []string{"run", "--format", "json"}
 	if opts.Model != "" {
 		args = append(args, "--model", opts.Model)
 	}
@@ -97,8 +100,9 @@ func buildRunArgs(prompt string, opts adapter.HeadlessOpts) []string {
 }
 
 func (a *Adapter) RunHeadless(ctx context.Context, prompt string, opts adapter.HeadlessOpts) (string, error) {
-	cmd := exec.CommandContext(ctx, "opencode", buildRunArgs(prompt, opts)...)
+	cmd := exec.CommandContext(ctx, "opencode", buildRunArgs(opts)...)
 	cmd.Dir = opts.WorkingDir
+	cmd.Stdin = strings.NewReader(prompt) // prompt por stdin: evita estourar ARG_MAX
 	out, err := cmd.Output()
 	if err != nil {
 		return string(out), err
