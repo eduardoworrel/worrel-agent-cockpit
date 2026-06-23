@@ -188,6 +188,10 @@ func (s *acpSession) Close() {
 // Respond responde a session/request_permission selecionando a opção allow/reject.
 func (s *acpSession) Respond(allow bool) error {
 	s.mu.Lock()
+	if s.permID == 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("nenhuma permissão pendente")
+	}
 	id := s.permID
 	opts := s.permOpts
 	s.interrupt = nil
@@ -198,9 +202,6 @@ func (s *acpSession) Respond(allow bool) error {
 	}
 	s.mu.Unlock()
 	s.notify()
-	if id == 0 {
-		return fmt.Errorf("nenhuma permissão pendente")
-	}
 	pick := selectPermOption(opts, allow)
 	return s.write(map[string]any{
 		"jsonrpc": "2.0", "id": id,

@@ -160,3 +160,15 @@ func captureACPWrite(s *acpSession) *acpWriteCapture {
 	}
 	return c
 }
+
+func TestACPRespondNoPendingErrors(t *testing.T) {
+	s := newTestACP()
+	s.pending = map[int]chan map[string]any{}
+	before := s.Snapshot().State
+	if err := s.Respond(true); err == nil {
+		t.Fatal("Respond sem permissão pendente deveria retornar erro")
+	}
+	if s.Snapshot().State != before {
+		t.Fatalf("State não deveria mudar quando não há permissão pendente: %q -> %q", before, s.Snapshot().State)
+	}
+}
