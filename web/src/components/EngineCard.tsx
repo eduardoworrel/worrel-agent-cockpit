@@ -9,6 +9,9 @@ export type Spec = {
 }
 export type EngineItem = { spec: Spec; config: Record<string, string> }
 
+// Tooltip (ⓘ) que distingue os dois disparos do motor; usada em ambos os botões.
+const RUN_VS_HISTORY_TIP = "'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada."
+
 // Modos de execução (gravam em __trigger). Descrições no front (universais).
 const EXEC_MODES: ConfigOption[] = [
   { value: 'project_open_close', label: 'Ao encerrar', description: 'Destila quando a sessão termina. Ao abrir o app, recupera as que fecharam sem análise.' },
@@ -93,7 +96,7 @@ export default function EngineCard({ item, setConfig, onRun, backlog, reprocess,
         {onRun && (
           <div className="ec-run">
             <button type="button" className="btn btn-primary" onClick={() => onRun(spec.id)}>▶ Rodar agora</button>
-            <i className="ec-info" data-tip="'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada.">ⓘ</i>
+            <i className="ec-info" data-tip={RUN_VS_HISTORY_TIP}>ⓘ</i>
             <span>Dispara o motor uma vez agora (o modo “sob demanda” usa este botão).</span>
           </div>
         )}
@@ -141,7 +144,7 @@ export default function EngineCard({ item, setConfig, onRun, backlog, reprocess,
                   ? 'Tudo em dia ✓'
                   : `▶ Analisar histórico (${backlog})`}
             </button>
-            <i className="ec-info" data-tip="'Rodar agora' analisa a sessão atual. 'Analisar histórico' varre as sessões passadas que este motor nunca analisou — uma vez cada.">ⓘ</i>
+            <i className="ec-info" data-tip={RUN_VS_HISTORY_TIP}>ⓘ</i>
           </div>
           {reprocess && reprocess.total > 0 && (
             <div className="ec-progress"><div className="ec-progress-bar" style={{ width: `${Math.round(100 * reprocess.done / reprocess.total)}%` }} /></div>
