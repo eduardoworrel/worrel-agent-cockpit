@@ -167,7 +167,9 @@ func (s *acpSession) onPromptResult(stopReason string) {
 }
 
 func (s *acpSession) Close() {
+	s.mu.Lock()
 	_ = s.stdinW.Close()
+	s.mu.Unlock()
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = s.cmd.Process.Kill()
 	}
@@ -197,12 +199,26 @@ func (s *acpSession) call(method string, params any) (map[string]any, error) {
 	}); err != nil {
 		return nil, err
 	}
-	resp := <-ch
+	resp, ok := <-ch
+	if !ok {
+		return nil, fmt.Errorf("acp: conexão encerrada")
+	}
 	if e, ok := resp["error"].(map[string]any); ok {
 		return nil, fmt.Errorf("acp %s: %v", method, e["message"])
 	}
 	out, _ := resp["result"].(map[string]any)
 	return out, nil
+}
+
+// drainPending closes every pending response channel and resets the map.
+// Must NOT be called while holding s.mu.
+func (s *acpSession) drainPending() {
+	s.mu.Lock()
+	for _, ch := range s.pending {
+		close(ch)
+	}
+	s.pending = map[int]chan map[string]any{}
+	s.mu.Unlock()
 }
 
 func (s *acpSession) readLoop(r *bufio.Reader) {
@@ -213,6 +229,7 @@ func (s *acpSession) readLoop(r *bufio.Reader) {
 			s.mu.Lock()
 			s.state = agui.StateEnded
 			s.mu.Unlock()
+			s.drainPending()
 			s.notify()
 			return
 		}
@@ -245,7 +262,7 @@ func (s *acpSession) readLoop(r *bufio.Reader) {
 func (s *acpSession) handleUpdate(u map[string]any) {
 	switch u["sessionUpdate"] {
 	case "agent_message_chunk":
-		s.appendChunk(u, true)
+		s.appendChunk(u)
 	case "agent_thought_chunk":
 		// reasoning não vira mensagem (espelha o Claude, que ignora thinking).
 	case "tool_call", "tool_call_update":
@@ -253,7 +270,7 @@ func (s *acpSession) handleUpdate(u map[string]any) {
 	}
 }
 
-func (s *acpSession) appendChunk(u map[string]any, message bool) {
+func (s *acpSession) appendChunk(u map[string]any) {
 	mid, _ := u["messageId"].(string)
 	content, _ := u["content"].(map[string]any)
 	text, _ := content["text"].(string)

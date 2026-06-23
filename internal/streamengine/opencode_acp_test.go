@@ -52,3 +52,16 @@ func TestOpencodeDriverSatisfiesDriver(t *testing.T) {
 	var _ Driver = opencodeDriver{}
 	var _ LiveSession = (*acpSession)(nil)
 }
+
+func TestACPCallUnblocksOnDisconnect(t *testing.T) {
+	s := newTestACP()
+	s.pending = map[int]chan map[string]any{}
+	// registra um waiter como o call() faria
+	ch := make(chan map[string]any, 1)
+	s.pending[1] = ch
+	// simula o drain que o readLoop faz no EOF
+	s.drainPending()
+	if _, ok := <-ch; ok {
+		t.Fatal("canal deveria estar fechado após drainPending")
+	}
+}
