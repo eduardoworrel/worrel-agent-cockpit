@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/adapter"
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/apply"
@@ -28,8 +29,6 @@ type Deps struct {
 	Adapters  *adapter.Registry
 	Port      int             // porta de escuta, p/ montar a URL MCP por sessão
 	Vault     *vault.Vault
-	Handoff   SummaryGeneratorIface // optional; nil = handoff indisponível
-	Spawner   Spawner               // optional; nil = handoff indisponível
 	Ask       *ask.Broker           // pedidos de confirmação/escolha (balões); nil = indisponível
 	Engines *engine.Registry // framework de motores (SP1); nil = indisponível
 	Summarizer HeadlessLLM    // LLM headless p/ resumo de progresso da Home; nil = indisponível
@@ -42,10 +41,13 @@ type Server struct {
 	progress  *progressCache  // cache do resumo por IA por sessão (canal AG-UI/Home)
 	titles    *progressCache  // cache do título "vivo" das sessões do motor
 	interpret *interpretCache // cache da interpretação de turnos-fala (auto-mode)
+
+	reprocMu sync.Mutex      // protege reproc
+	reproc   map[string]bool // engineID em reprocessamento (impede lote concorrente)
 }
 
 func New(deps Deps) *Server {
-	s := &Server{deps: deps, mux: http.NewServeMux(), progress: newProgressCache(), titles: newProgressCache(), interpret: newInterpretCache()}
+	s := &Server{deps: deps, mux: http.NewServeMux(), progress: newProgressCache(), titles: newProgressCache(), interpret: newInterpretCache(), reproc: map[string]bool{}}
 	s.routes()
 	return s
 }
@@ -71,7 +73,6 @@ func (s *Server) routes() {
 	s.routesInteraction()
 	s.routesModels()
 	s.routesSecrets()
-	s.routesHandoff()
 	s.routesPipelines()
 	s.routesAsks()
 	s.routesReset()

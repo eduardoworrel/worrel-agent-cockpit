@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FanMark } from '../components/Fan';
 import { ProviderBadge } from '../session';
-import { killSession, archiveSession, postHandoff } from '../api';
+import { killSession, archiveSession } from '../api';
+import { useFlip } from './useFlip';
 import type { Project, Session } from '../api';
+import type { SessionStatus } from '../sessionStatus';
 
 interface Props {
   projects: Project[];
   // Todas as sessões wrapper (vivas + encerradas) e o conjunto das vivas.
   sessions: Session[];
   liveIds: Set<string>;
-  awaitingIds: Set<string>;
+  // statusById: farol de estado por sessão, derivado pela MESMA função do card
+  // da Home (ver sessionStatus) — mantém a bolinha da sidebar em sincronia com a
+  // da miniatura.
+  statusById: Record<string, SessionStatus>;
   // onChanged recarrega o estado da app após uma ação (encerrar/arquivar) para
   // que a sidebar reflita o novo estado da sessão.
   onChanged: () => void;
@@ -20,12 +25,14 @@ interface Props {
 // AppNav é a navegação principal. O item "terminals" não navega: expande, no
 // próprio sidebar, a lista de terminais ATIVOS (agrupados por projeto, incluindo
 // "sem projeto") e um HISTÓRICO das sessões encerradas. Cada item ganha as ações
-// por estado: vivas → Encerrar; encerradas → Recomeçar / Arquivar.
-export default function AppNav({ projects, sessions, liveIds, awaitingIds, onChanged }: Props) {
+// por estado: vivas → Encerrar; encerradas → Arquivar.
+export default function AppNav({ projects, sessions, liveIds, statusById, onChanged }: Props) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Estado de colapso do histórico por projeto (chave = group.key, não índice:
+  // o índice muda quando os grupos reordenam, a chave acompanha o projeto).
+  const [histOpen, setHistOpen] = useState<Record<string, boolean>>({});
   // Alvos dos modais de confirmação (a ação destrutiva só acontece após confirmar).
   const [killTarget, setKillTarget] = useState<Session | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Session | null>(null);
@@ -35,20 +42,54 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds, onCha
   const byProject = (pid: string) => live.filter((s) => s.project_id === pid);
   const orphans = live.filter((s) => !s.project_id);
 
+  // Recência de uma sessão encerrada = fim, ou início como fallback.
+  const recency = (s: Session) => s.ended_at ?? s.started_at ?? 0;
+  const projName = (pid: string) =>
+    projects.find((p) => p.id === pid)?.name || t('home.wizard.noProject');
+
+  // Histórico agrupado por projeto. Sessões e grupos ordenam pela ATIVIDADE MAIS
+  // RECENTE (não por nome/criação): o projeto cuja última sessão é mais nova sobe
+  // ao topo — como uma lista de conversas. Reordena reativamente a cada render.
+  const ORPHAN = '__orphan__';
+  const historyGroups = (() => {
+    const map = new Map<string, Session[]>();
+    for (const s of ended) {
+      const key = s.project_id || ORPHAN;
+      const arr = map.get(key);
+      if (arr) arr.push(s); else map.set(key, [s]);
+    }
+    return [...map.entries()]
+      .map(([key, list]) => {
+        const sessions = [...list].sort((a, b) => recency(b) - recency(a));
+        return {
+          key,
+          name: key === ORPHAN ? t('home.wizard.noProject') : projName(key),
+          sessions,
+          last: recency(sessions[0]),
+        };
+      })
+      .sort((a, b) => b.last - a.last);
+  })();
+
+  // Anima a reordenação dos grupos quando a recência muda a ordem.
+  const flipRef = useFlip(historyGroups.map((g) => g.key));
+
+  // Tempo relativo curto para o header do grupo ("agora", "12min", "3h", "5d").
+  function timeAgo(ts: number): string {
+    if (!ts) return '';
+    const min = Math.round((Date.now() - ts) / 60000);
+    if (min < 1) return t('time.now', 'agora') as string;
+    if (min < 60) return `${min}min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.round(h / 24)}d`;
+  }
+
   // run serializa as ações (evita duplo clique) e recarrega o estado ao final.
   async function run(fn: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
     try { await fn(); onChanged(); } catch { /* preserva o último estado bom */ } finally { setBusy(false); }
-  }
-
-  // Recomeçar: cria uma nova sessão encadeada (handoff) herdando o contexto da
-  // encerrada e abre o terminal dela.
-  function handleResume(sessionId: string) {
-    return run(async () => {
-      const r = await postHandoff(sessionId);
-      navigate(`/sessions/${r.new_id}`);
-    });
   }
 
   function handleKill(sessionId: string) {
@@ -70,16 +111,19 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds, onCha
     const time = s.started_at
       ? new Date(s.started_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
       : '';
+    // Farol de estado vindo do App (mesma derivação do card da Home): a bolinha
+    // segue o estado real (verde = trabalhando, âmbar = esperando você).
+    const status = statusById[s.id];
     return (
       <div key={s.id} className="appnav-term-wrap">
         <NavLink to={`/sessions/${s.id}`}
-          className={`appnav-term${awaitingIds.has(s.id) ? ' needs-attention' : ''}${isLive ? ' live' : ''}`}>
+          className={`appnav-term${status === 'awaiting' ? ' needs-attention' : ''}${isLive ? ' live' : ''}`}>
           <span className="appnav-term-top">
             <ProviderBadge adapter={s.adapter} />
             <span className="appnav-term-time">{time}</span>
           </span>
           <span className="appnav-term-name">
-            {isLive && <span className="appnav-live-dot" aria-hidden="true" />}
+            {isLive && <span className="appnav-live-dot" data-state={status} aria-hidden="true" />}
             <span className="appnav-term-label">{name}</span>
           </span>
         </NavLink>
@@ -93,14 +137,6 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds, onCha
               onClick={() => setKillTarget(s)}
             >⨯</button>
           ) : (
-            <>
-              <button
-                className="appnav-term-act"
-                disabled={busy}
-                title={t('sessions.resumeHint') as string}
-                aria-label={t('sessions.resume') as string}
-                onClick={() => handleResume(s.id)}
-              >↻</button>
               <button
                 className="appnav-term-act"
                 disabled={busy}
@@ -108,7 +144,6 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds, onCha
                 aria-label={t('sessions.archive') as string}
                 onClick={() => setArchiveTarget(s)}
               >🗄</button>
-            </>
           )}
         </span>
       </div>
@@ -150,11 +185,27 @@ export default function AppNav({ projects, sessions, liveIds, awaitingIds, onCha
             {group(t('home.wizard.noProject'), orphans)}
             {projects.map((p) => group(p.name, byProject(p.id)))}
 
-            {ended.length > 0 && (
-              <div className="appnav-term-group">
+            {historyGroups.length > 0 && (
+              <>
                 <div className="appnav-term-proj appnav-term-history">{t('terminals.history')}</div>
-                {ended.slice(0, 8).map((s) => item(s, false))}
-              </div>
+                {historyGroups.map((g, idx) => {
+                  // Default: o grupo mais recente já vem aberto; os demais colapsados.
+                  const isOpen = histOpen[g.key] ?? idx === 0;
+                  return (
+                    <div className="appnav-term-group" key={g.key} ref={flipRef(g.key)}>
+                      <button
+                        className={`appnav-hist-head${isOpen ? ' open' : ''}`}
+                        onClick={() => setHistOpen((m) => ({ ...m, [g.key]: !isOpen }))}
+                        aria-expanded={isOpen}
+                      >
+                        <span className="appnav-hist-name">{g.name}</span>
+                        <span className="appnav-hist-meta">{g.sessions.length} · {timeAgo(g.last)}</span>
+                      </button>
+                      {isOpen && g.sessions.slice(0, 8).map((s) => item(s, false))}
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         )}

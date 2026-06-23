@@ -27,16 +27,6 @@ export interface MemoryEntry {
   created_at: number;
 }
 
-export interface AskRequest {
-  request_id: string;
-  session_id: string;
-  session_label: string;
-  kind: 'permission' | 'choice';
-  title: string;
-  detail?: string;
-  options: string[] | null;
-}
-
 export interface Skill {
   id: string;
   project_id: string;
@@ -101,7 +91,6 @@ export interface Session {
   ended_at: number | null;
   summary: string;
   transcript_pruned: boolean;
-  continues?: string | null;
   context_used?: number;
   context_limit?: number;
   workspace_dir?: string;
@@ -306,6 +295,26 @@ export function listSessions(projectId?: string): Promise<Session[]> {
   return req(`/sessions${qs}`);
 }
 
+// DeferredSession espelha store.DeferredSession: uma sessão adiada vira uma
+// bolinha no sidebar (readonly) que reabre o modal de interação ao ser clicada.
+export interface DeferredSession {
+  session_id: string;
+  label: string;
+  project_id: string;
+  deferred_at: number;
+}
+
+// deferSession adia a sessão: o modal fecha e ela vira bolinha no sidebar; não
+// reabre sozinha (só ao clicar a bolinha). Responder/enviar limpa a marca.
+export function deferSession(id: string): Promise<void> {
+  return req(`/sessions/${id}/defer`, { method: 'POST' });
+}
+
+// listDeferred devolve a fila de adiadas (mais recentes primeiro).
+export function listDeferred(): Promise<DeferredSession[]> {
+  return req('/deferred');
+}
+
 export function archiveSession(id: string): Promise<{ ok: boolean }> {
   return req(`/sessions/${id}/archive`, { method: 'POST' });
 }
@@ -367,21 +376,6 @@ export async function pasteImage(id: string, blob: Blob): Promise<{ path: string
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   return res.json();
-}
-
-export function postHandoff(id: string): Promise<{ old_id: string; new_id: string; summary: string }> {
-  return req(`/sessions/${id}/handoff`, { method: 'POST' });
-}
-
-export function getPendingAsks(): Promise<AskRequest[]> {
-  return req('/asks/pending');
-}
-
-export function respondAsk(requestId: string, answer: string): Promise<void> {
-  return req(`/asks/${requestId}/respond`, {
-    method: 'POST',
-    body: JSON.stringify({ answer }),
-  });
 }
 
 export function getSettings(): Promise<Record<string, string>> {

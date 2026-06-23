@@ -30,7 +30,13 @@ export default function Settings() {
     fetch(`/api/engines/${id}/reprocess`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: '' }),
+<<<<<<< HEAD
     }).then(r => r.json()).then(d => setReproc(p => ({ ...p, [id]: { done: 0, total: d.total } }))).catch(() => {});
+=======
+    }).then(r => r.json()).then(d => {
+      if (d.total > 0) setReproc(p => ({ ...p, [id]: { done: 0, total: d.total } }));
+    }).catch(() => {});
+>>>>>>> feat/analisar-historico-motores
   const [showWizard, setShowWizard] = useState(false);
   const [tab, setTab] = useState('geral');
   const [activity, setActivity] = useState<EngineLogEntry[]>([]);
@@ -53,7 +59,11 @@ export default function Settings() {
     }).then(() => { setTab('atividade'); loadActivity(); }).catch(() => {});
 
   useEffect(() => { loadEngines(); }, []);
+<<<<<<< HEAD
   useEffect(() => { engines.forEach(e => loadBacklog(e.spec.id)); }, [engines.length]);
+=======
+  useEffect(() => { engines.forEach(e => loadBacklog(e.spec.id)); }, [engines.map(e => e.spec.id).join(',')]);
+>>>>>>> feat/analisar-historico-motores
 
   useEvents((ev) => {
     const p = ev.payload as { engine_id?: string; done?: number; total?: number } | null;

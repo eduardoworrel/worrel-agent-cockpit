@@ -52,6 +52,8 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
   // seed: a semente da sessão — nada, uma skill ou um agent.
   const [seed, setSeed] = useState<{ kind: 'skill' | 'agent'; id: string } | null>(null);
   const [prompt, setPrompt] = useState('');
+  // classic=true: sessão de terminal puro (PTY/CLI real), sem o motor de eventos.
+  const [classic, setClassic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -97,6 +99,7 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
     markUsed('provider', adapterId);
     if (projectId) markUsed('project', projectId);
     try {
+<<<<<<< HEAD
       // O motor stream-json só dirige o `claude`. Para ele, a sessão vira uma
       // miniatura AG-UI na Home (openTerminal decide ficar na Home ou abrir a
       // conversa). Qualquer outro harness (opencode, antigravity, codex, pidev) não
@@ -114,6 +117,28 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
         ? await createSession(projectId, adapterId, seedOpts)
         : await createFreeSession(adapterId, undefined, seed?.kind === 'skill' ? seed.id : undefined);
       onCreated(sess, true);
+=======
+      // Modo clássico: terminal puro (PTY) com a CLI real escolhida no provider.
+      // Não passa pelo motor de eventos → SessionRoute abre o xterm. Sempre
+      // navega para o terminal (não há miniatura interativa para essa sessão).
+      if (classic) {
+        const seedOpts = seed?.kind === 'skill'
+          ? { skillId: seed.id }
+          : seed?.kind === 'agent'
+            ? { agentId: seed.id }
+            : undefined;
+        const sess = projectId
+          ? await createSession(projectId, adapterId, seedOpts)
+          : await createFreeSession(adapterId);
+        onCreated(sess, true);
+        return;
+      }
+      // Sessão de motor (stream-json): openTerminal só decide a navegação —
+      // ficar na Home (miniatura) ou abrir a conversa.
+      const sess = await createEngineSession(projectId ?? undefined, permMode, mode);
+      if (prompt.trim()) await sendPrompt(sess.id, prompt.trim());
+      onCreated(sess, openTerminal);
+>>>>>>> feat/analisar-historico-motores
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common.actionFailed'));
       setBusy(false);
@@ -245,32 +270,63 @@ export default function NewSessionWizard({ onCreated, onClose }: Props) {
                 ))}
               </div>
 
-              <label className="nsw-promptline">
-                <span className="nsw-prompt-glyph" aria-hidden="true">›</span>
-                <textarea
-                  className="nsw-prompt"
-                  placeholder={t('home.wizard.promptPlaceholder')}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={2}
-                  autoFocus
-                />
-              </label>
+              {/* No modo clássico a CLI é dirigida direto no terminal — o prompt
+                  do wizard não é injetado, então escondemos o campo. */}
+              {!classic && (
+                <label className="nsw-promptline">
+                  <span className="nsw-prompt-glyph" aria-hidden="true">›</span>
+                  <textarea
+                    className="nsw-prompt"
+                    placeholder={t('home.wizard.promptPlaceholder')}
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    rows={2}
+                    autoFocus
+                  />
+                </label>
+              )}
+
+              {/* Motor da sessão: motor de eventos (recomendado) ou terminal clássico. */}
+              <div className="nsw-field">
+                <span className="nsw-field-label">{t('home.wizard.driver')}</span>
+                <div className="nsw-modes">
+                  {([false, true] as const).map((isClassic) => (
+                    <button key={String(isClassic)} className={`nsw-mode${classic === isClassic ? ' on' : ''}`}
+                      onClick={() => setClassic(isClassic)} aria-pressed={classic === isClassic}>
+                      <span className="nsw-mode-name">
+                        {t(isClassic ? 'home.wizard.classicMode' : 'home.wizard.engineMode')}
+                      </span>
+                      <span className="nsw-mode-desc">
+                        {t(isClassic ? 'home.wizard.classicModeDesc' : 'home.wizard.engineModeDesc')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {classic && <p className="nsw-classic-warn">⚠ {t('home.wizard.classicWarn')}</p>}
+              </div>
 
               <div className="nsw-actions">
                 <button className="nsw-back" onClick={() => setStep(1)}>{t('common.back')}</button>
-                {/* Split: corpo fica na Home (miniatura AG-UI); aux abre o terminal. */}
-                <span className="nsw-start-split">
+                {classic ? (
+                  // Clássico: sem miniatura → uma única ação que abre o terminal.
                   <button className="nsw-start" disabled={busy || !adapterId}
-                    onClick={() => start(false)}>
-                    {busy ? t('common.loading') : <>{t('home.wizard.start')} <span aria-hidden="true">›</span></>}
-                  </button>
-                  <button className="nsw-start-aux" disabled={busy || !adapterId}
-                    title={t('home.wizard.startTerminal')} aria-label={t('home.wizard.startTerminal')}
                     onClick={() => start(true)}>
-                    <TerminalGlyph />
+                    {busy ? t('common.loading') : <>{t('home.wizard.openTerminal')} <span aria-hidden="true">›</span></>}
                   </button>
-                </span>
+                ) : (
+                  // Split: corpo fica na Home (miniatura AG-UI); aux abre a conversa.
+                  <span className="nsw-start-split">
+                    <button className="nsw-start" disabled={busy || !adapterId}
+                      onClick={() => start(false)}>
+                      {busy ? t('common.loading') : <>{t('home.wizard.start')} <span aria-hidden="true">›</span></>}
+                    </button>
+                    <button className="nsw-start-aux" disabled={busy || !adapterId}
+                      title={t('home.wizard.startTerminal')} aria-label={t('home.wizard.startTerminal')}
+                      onClick={() => start(true)}>
+                      <TerminalGlyph />
+                    </button>
+                  </span>
+                )}
               </div>
             </div>
           )}

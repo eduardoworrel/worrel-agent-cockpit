@@ -66,6 +66,21 @@ func (s *Server) handleInteraction(w http.ResponseWriter, r *http.Request) {
 			s.attachInterpretation(&snap)
 			// Título vivo + eventos narrados (card) gerados do histórico.
 			s.attachEngineSummary(&snap)
+			// Sessões de motor recebem permissões nativas (can_use_tool via
+			// stdio), mas perguntas via broker (MCP ask_user) não passam pelo
+			// motor. Se não há interrupt nativo e há ask pendente para esta
+			// sessão, expõe-o para o modal renderizar a pergunta.
+			if snap.Interrupt == nil && s.deps.Ask != nil {
+				for _, rq := range s.deps.Ask.Pending() {
+					if rq.SessionID == id {
+						snap.Interrupt = agui.InterruptFromAsk(rq)
+						if snap.State == agui.StateWorking {
+							snap.State = agui.StateAwaiting
+						}
+						break
+					}
+				}
+			}
 			writeJSON(w, 200, snap)
 			return
 		}
@@ -97,7 +112,17 @@ func (s *Server) handleInteractionRespond(w http.ResponseWriter, r *http.Request
 		writeErr(w, 400, "corpo inválido")
 		return
 	}
-	// Sessão do motor: a permissão é respondida pelo stream (allow/deny).
+	// Ask de broker (hook PreToolUse de PTY ou a tool MCP ask_user) tem
+	// prioridade: resolve pelo request_id. É no-op (retorna false) para um
+	// interrupt nativo do motor, cujo request_id não vive no broker — aí caímos
+	// no caminho do motor abaixo. Isso cobre a sessão de motor que faz ask_user.
+	if s.deps.Ask != nil && in.RequestID != "" && s.deps.Ask.Resolve(in.RequestID, in.Answer) {
+		s.clearDeferred(id)
+		s.deps.Bus.Publish(bus.Event{Type: "ask.resolved", Payload: map[string]any{"request_id": in.RequestID}})
+		w.WriteHeader(204)
+		return
+	}
+	// Sessão do motor: a permissão nativa é respondida pelo stream (allow/deny).
 	if s.deps.Engine != nil && s.deps.Engine.Has(id) {
 		allow := in.Answer == "allow" || in.Answer == "yes" || in.Answer == "permitir"
 		if err := s.deps.Engine.Respond(id, allow); err != nil {
@@ -116,13 +141,7 @@ func (s *Server) handleInteractionRespond(w http.ResponseWriter, r *http.Request
 		writeErr(w, 400, "request_id obrigatório")
 		return
 	}
-	if !s.deps.Ask.Resolve(in.RequestID, in.Answer) {
-		writeErr(w, 404, "pedido inexistente ou já resolvido")
-		return
-	}
-	s.clearDeferred(id)
-	s.deps.Bus.Publish(bus.Event{Type: "ask.resolved", Payload: map[string]any{"request_id": in.RequestID}})
-	w.WriteHeader(204)
+	writeErr(w, 404, "pedido inexistente ou já resolvido")
 }
 
 // handleInteractionPrompt injeta um novo prompt no stdin do PTY quando a sessão
