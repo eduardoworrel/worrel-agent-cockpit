@@ -39,8 +39,9 @@ frente**.
 - **Remover o gemini de vez** (não manter como provider). ID novo `antigravity`.
 - **Transcript do agy**: não invadir os arquivos do CLI (degradação graciosa),
   porque o caminho certo é o worrel persistir sua própria observação (P2).
-- **Análise retroativa**: hoje está **órfã** (só sobraram strings de i18n e os
-  blocos de adapter; sem rota HTTP nem UI). Vira sub-projeto próprio (P3).
+- **Análise retroativa**: hoje está **órfã** (só sobraram strings de i18n e
+  endpoints mortos; sem UI). Será reimaginada como feature grande no futuro; por
+  ora **apagamos o resíduo** (P3).
 - Paralelizar P1/P2/P3 (worktrees), P1 primeiro.
 
 ---
@@ -145,22 +146,29 @@ sempre nossos dados, sem tocar nos arquivos do CLI.
 Escopo e riscos (ruído de ANSI, segmentação de turnos no PTY) merecem spec
 dedicado. **P2 é sub-projeto separado**, mas pode rodar em paralelo a P1.
 
-## P3 — Aba de análise retroativa em Config
+## P3 — Remoção do resíduo órfão de análise retroativa
 
-Estado atual: feature **órfã** — strings de i18n (`i18n.ts:148-243`, chave
-`onboarding.analyzeHistory`), adapters com `DiscoverSessions/ReadTranscript`, mas
-**sem rota HTTP** (`server.go` não registra `/api/retro*` nem
-`/sessions/{id}/distill`, embora `api.ts` defina `distillSession`) e **sem UI**
-(nem no `OnboardingWizard`, nem no `EmptyState`, nem em `Settings.tsx`).
+Decisão: a análise retroativa será reimaginada como uma **feature grande no
+futuro**. O código atual está **órfão** (planejado e abandonado na cola) e deve
+ser **apagado** agora para não confundir — a feature futura nasce limpa.
 
-Objetivo: criar uma aba "Análise retroativa" em `Settings.tsx` (hoje só
-`geral`, abas de engine, `atividade`) que orquestra
-`DiscoverSessions` → seleção/escopo → distilação, com rota(s) HTTP novas no
-`internal/httpapi`. Para o `antigravity`, como `DiscoverSessions` é
-`ErrNotSupported`, a aba simplesmente **não oferece** o agy como fonte (os demais
-CLIs com observer continuam disponíveis).
+Estado atual órfão a remover:
+- Strings de i18n de análise retroativa: bloco `retro` (`i18n.ts:148-243` em cada
+  locale), entrada de nav `retro: 'Retroactive analysis'` / `'Análise retroativa'`
+  (`i18n.ts:16,560`), e a chave `onboarding.analyzeHistory` (`i18n.ts:96`).
+- `distillSession(id)` em `web/src/api.ts` (POST `/sessions/{id}/distill` que o
+  backend nunca implementou) e sua chamada em `web/src/App.tsx` (import + uso no
+  fim de sessão).
+- Qualquer referência morta a "analyze my history"/retro no `EmptyState.tsx` e no
+  `OnboardingWizard.tsx`.
 
-Feature nova e substancial — **sub-projeto separado**, independente de P1/P2.
+**NÃO remover** (servem a outras features, não à análise retroativa):
+- `DiscoverSessions`/`ReadTranscript`/`ContextUsage` dos adapters — usados pelo
+  handoff e pelo wrapper (P2).
+- O importer de histórico externo, se existir e for consumido por algo vivo.
+
+Antes de apagar, confirmar com grep que cada símbolo removido não tem outro
+consumidor vivo. Sub-projeto independente de P1/P2.
 
 ---
 
@@ -168,7 +176,7 @@ Feature nova e substancial — **sub-projeto separado**, independente de P1/P2.
 
 1. P1 (worktree) — primeiro; entrega a substituição do gemini + ordenação.
 2. P2 (worktree) — em paralelo; refactor do handoff.
-3. P3 (worktree) — em paralelo; aba de análise retroativa.
+3. P3 (worktree) — em paralelo; remoção do resíduo órfão de análise retroativa.
 
 Cada sub-projeto terá seu próprio plano de implementação (writing-plans) e ciclo
 de revisão. Este documento é o spec-mãe da decomposição; P1 está detalhado o
