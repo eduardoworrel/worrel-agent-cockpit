@@ -65,3 +65,18 @@ func TestCodexCompletedDoesNotDoubleRecord(t *testing.T) {
 		t.Fatalf("ToolCalls = %d, quer 1 (sem duplicar no completed)", n)
 	}
 }
+
+func TestCodexFinishTurnIdempotent(t *testing.T) {
+	s := newTestCodex()
+	var persisted int
+	s.persist = func(role, text string) { persisted++ }
+	s.handleNotification("item/agentMessage/delta", map[string]any{"itemId": "i1", "delta": "done"})
+	s.finishTurn() // primeiro fim de turno
+	s.finishTurn() // segundo (ex.: turn/completed após erro) — não deve duplicar
+	if persisted != 1 {
+		t.Fatalf("persist chamado %d vezes, quer 1 (idempotente)", persisted)
+	}
+	if n := len(s.Snapshot().History); n != 1 {
+		t.Fatalf("History tem %d linhas, quer 1 (sem duplicar 'ai')", n)
+	}
+}

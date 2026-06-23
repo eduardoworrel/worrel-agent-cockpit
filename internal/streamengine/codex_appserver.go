@@ -143,6 +143,10 @@ func (s *codexSession) SendPrompt(text string) error {
 // finishTurn fecha o turno: flush da mensagem acumulada para o histórico + persist.
 func (s *codexSession) finishTurn() {
 	s.mu.Lock()
+	if s.state != agui.StateWorking {
+		s.mu.Unlock()
+		return // turno já encerrado; idempotente
+	}
 	msg := s.message
 	var line agui.HistoryLine
 	if strings.TrimSpace(msg) != "" {
