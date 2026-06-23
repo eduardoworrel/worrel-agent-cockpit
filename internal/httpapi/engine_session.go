@@ -80,7 +80,8 @@ func (s *Server) handleCreateEngineSession(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	if err := s.deps.Engine.Start(context.Background(), sess.ID, cwd, opts); err != nil {
+	// temporário: provider fixo até a Task 3 ligar o request.
+	if err := s.deps.Engine.Start(context.Background(), "claude-code", sess.ID, cwd, opts); err != nil {
 		_ = s.deps.Store.EndSession(sess.ID)
 		writeErr(w, 500, err.Error())
 		return

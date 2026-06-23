@@ -31,3 +31,14 @@ func keys(m map[string]Driver) []string {
 }
 
 var _ = context.Background
+
+func TestManagerStartUnknownProvider(t *testing.T) {
+	m := NewManager(nil, nil)
+	err := m.Start(context.Background(), "antigravity", "s1", t.TempDir(), Opts{})
+	if err != ErrUnknownProvider {
+		t.Fatalf("quer ErrUnknownProvider p/ provider sem driver, veio: %v", err)
+	}
+	if m.Has("s1") {
+		t.Fatal("não deveria registrar sessão para provider desconhecido")
+	}
+}
