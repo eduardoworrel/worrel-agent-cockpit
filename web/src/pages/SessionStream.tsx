@@ -20,6 +20,8 @@ export default function SessionStream() {
   // Rascunho persistido por sessão: navegar entre terminais não perde o texto.
   const [text, setText, clearDraft] = useDraft(id);
   const [busy, setBusy] = useState(false);
+  // Confirmação de encerramento: espelha o modal do x no sidebar (AppNav).
+  const [confirmKill, setConfirmKill] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -68,7 +70,7 @@ export default function SessionStream() {
         <span className="ixp-state" data-state={state}>{t(`home.ix.state.${state}`)}</span>
         <span className="sstream-engine">{providerLabel('engine')}</span>
         <button className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }}
-          onClick={() => id && act(() => killSession(id).then(() => navigate('/')))}>
+          disabled={busy} onClick={() => setConfirmKill(true)}>
           {t('terminal.kill')}
         </button>
       </header>
@@ -120,6 +122,25 @@ export default function SessionStream() {
             autoFocus
           />
           <button className="btn btn-primary btn-sm" disabled={busy || !text.trim()} onClick={submit}>{t('home.ix.send')}</button>
+        </div>
+      )}
+
+      {confirmKill && (
+        <div className="modal-overlay" onClick={() => !busy && setConfirmKill(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="sstream-kill-title"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 id="sstream-kill-title" style={{ marginTop: 0 }}>{t('sessions.endConfirmTitle', 'Encerrar sessão em andamento?')}</h3>
+            <p>{t('sessions.endConfirmMsg', 'O processo do agente será finalizado. A sessão fica no histórico e pode ser recomeçada depois.')}</p>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} disabled={busy} onClick={() => setConfirmKill(false)}>
+                {t('common.cancel')}
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy}
+                onClick={() => id && act(() => killSession(id).then(() => { setConfirmKill(false); navigate('/'); }))}>
+                {t('sessions.end', 'Encerrar')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
