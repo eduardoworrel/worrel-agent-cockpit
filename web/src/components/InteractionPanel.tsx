@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { respondInteraction, sendPrompt, deferSession } from '../api';
+import { respondInteraction, sendPrompt, deferSession, idleSession, killSession } from '../api';
 import type { InteractionSnapshot } from '../api';
 import { useDraft } from '../useDraft';
 
@@ -64,6 +64,26 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
     finally { setBusy(false); }
   }
 
+  // Ocioso: dispensa a pergunta e marca a sessão como ociosa no backend — vira
+  // bolinha CINZA no sidebar (sem pendência), distinta da laranja do Adiar.
+  // Reabre o modal só ao clicar a bolinha.
+  async function doIdle() {
+    if (busy) return;
+    setBusy(true);
+    try { await idleSession(id); onClose(); } catch { /* já resolvido/encerrado */ }
+    finally { setBusy(false); }
+  }
+
+  // Encerrar: finaliza o processo do agente (kill). Pede confirmação porque é
+  // irreversível — a sessão acaba.
+  async function doClose() {
+    if (busy) return;
+    if (!window.confirm(t('home.ix.closeConfirm'))) return;
+    setBusy(true);
+    try { await killSession(id); onActed(); onClose(); } catch { /* já encerrado */ }
+    finally { setBusy(false); }
+  }
+
   const permit = (allow: boolean) =>
     act(() => respondInteraction(id, interrupt!.request_id, allow ? 'allow' : 'deny'));
   const reply = (value: string) => act(() => sendPrompt(id, value));
@@ -85,9 +105,17 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
           <button className="ixp-open-chat" onClick={onOpenChat}>{t('home.ix.openChat')} →</button>
         )}
         {awaitsYou && (
-          <button className="ixp-defer" disabled={busy} onClick={doDefer}>{t('home.ix.defer', 'Adiar')}</button>
+          <>
+            <button className="ixp-defer" disabled={busy} onClick={doDefer}
+              title={t('home.ix.deferHint')}>{t('home.ix.defer', 'Adiar')}</button>
+            <button className="ixp-idle" disabled={busy} onClick={doIdle}
+              title={t('home.ix.idleHint')}>{t('home.ix.idle', 'Ocioso')}</button>
+            <button className="ixp-close-session" disabled={busy} onClick={doClose}
+              title={t('home.ix.closeHint')}>{t('home.ix.close', 'Encerrar')}</button>
+          </>
         )}
-        <button className="ixp-close" onClick={onClose} aria-label={t('common.cancel')}>✕</button>
+        <button className="ixp-close" onClick={onClose} aria-label={t('common.cancel')}
+          title={t('home.ix.dismissHint')}>✕</button>
       </div>
 
       {/* Meu último pedido: o que o usuário pediu por último (o harness consegue digerir). */}

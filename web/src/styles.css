@@ -1298,6 +1298,8 @@ tr:last-child td { border-bottom: none; }
 .drawer-deferred { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0; overflow-y: auto; }
 .deferred-dot { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 50%; border: 2px solid var(--orange); background: var(--surface-warm); color: var(--ink); font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: transform 0.1s ease; }
 .deferred-dot:hover { transform: scale(1.08); }
+/* Ocioso (sem pendência): bolinha CINZA, distinta da laranja do Adiar. */
+.deferred-dot[data-kind="idle"] { border-color: var(--muted); background: var(--surface-sunk); color: var(--muted); }
 
 /* Retro range picker — dual-handle draggable slider */
 .retro-range { display: flex; flex-direction: column; gap: 0.6rem; }
@@ -2140,3 +2142,19 @@ tr:last-child td { border-bottom: none; }
 }
 .ixp-defer:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
 .ixp-defer:disabled { opacity: 0.5; cursor: default; }
+
+/* Ocioso: mesma pegada neutra do Adiar (dispensa a pergunta). */
+.ixp-idle {
+  margin-left: 6px; background: none; border: 1px solid var(--line); border-radius: 6px;
+  padding: 2px 10px; cursor: pointer; font-size: 0.78rem; color: var(--muted); font-weight: 600;
+}
+.ixp-idle:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
+.ixp-idle:disabled { opacity: 0.5; cursor: default; }
+
+/* Encerrar: ação destrutiva (mata o processo) — tonalidade vermelha. */
+.ixp-close-session {
+  margin-left: 6px; background: none; border: 1px solid var(--red); border-radius: 6px;
+  padding: 2px 10px; cursor: pointer; font-size: 0.78rem; color: var(--red); font-weight: 600;
+}
+.ixp-close-session:hover:not(:disabled) { background: var(--red); color: #fff; border-color: var(--red); }
+.ixp-close-session:disabled { opacity: 0.5; cursor: default; }

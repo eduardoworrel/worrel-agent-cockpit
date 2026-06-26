@@ -134,7 +134,8 @@ export default function SuggestionsDrawer({ projects, reloadKey, onOpen }: Props
             <button
               key={d.session_id}
               className="deferred-dot"
-              title={d.label || d.session_id}
+              data-kind={d.kind}
+              title={`${d.label || d.session_id} · ${d.kind === 'idle' ? t('drawer.idleDot', 'ociosa') : t('drawer.deferredDot', 'adiada')}`}
               onClick={() => onOpen(d.session_id)}
             >
               {initials(d.label || d.session_id)}

@@ -18,6 +18,7 @@ func (s *Server) routesInteraction() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/interaction/prompt", s.handleInteractionPrompt)
 	// Fila de adiadas: adiar uma sessão (vira bolinha no sidebar) e listar a fila.
 	s.mux.HandleFunc("POST /api/sessions/{id}/defer", s.handleDeferSession)
+	s.mux.HandleFunc("POST /api/sessions/{id}/idle", s.handleIdleSession)
 	s.mux.HandleFunc("GET /api/deferred", s.handleListDeferred)
 }
 
@@ -27,6 +28,19 @@ func (s *Server) routesInteraction() {
 func (s *Server) handleDeferSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.deps.Store.SetSessionDeferred(id); err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	s.deps.Bus.Publish(bus.Event{Type: "session.deferred", Payload: map[string]any{"session_id": id}})
+	w.WriteHeader(204)
+}
+
+// handleIdleSession marca a sessão como ociosa: dispensa a pergunta e a sessão
+// vira uma bolinha CINZA no sidebar (sem ação pendente), que reabre o modal ao
+// ser clicada. Diferente de Adiar (laranja), sinaliza "sem pendência".
+func (s *Server) handleIdleSession(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.deps.Store.SetSessionIdle(id); err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}

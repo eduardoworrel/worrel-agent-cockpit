@@ -107,6 +107,11 @@ func migrateAddColumns(db *sql.DB) error {
 		// DESC dá as mais recentes (as bolinhas do sidebar). Limpo ao responder.
 		{"sessions", "deferred_at",
 			`ALTER TABLE sessions ADD COLUMN deferred_at INTEGER`},
+		// tipo da marca de adiada: 'defer' (Adiar — bolinha laranja, pergunta
+		// pendente) ou 'idle' (Ocioso — bolinha cinza, dispensada/sem ação
+		// pendente). Só relevante quando deferred_at != NULL.
+		{"sessions", "deferred_kind",
+			`ALTER TABLE sessions ADD COLUMN deferred_kind TEXT NOT NULL DEFAULT 'defer'`},
 		// status do projeto: 'active' (padrão) ou 'archived'. Projetos
 		// arquivados são omitidos da listagem padrão (ListProjects).
 		{"projects", "status",

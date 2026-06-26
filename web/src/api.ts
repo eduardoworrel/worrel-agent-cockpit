@@ -307,12 +307,21 @@ export interface DeferredSession {
   label: string;
   project_id: string;
   deferred_at: number;
+  // 'defer' (Adiar — bolinha laranja, pergunta pendente) ou 'idle' (Ocioso —
+  // bolinha cinza, dispensada/sem ação pendente).
+  kind: 'defer' | 'idle';
 }
 
 // deferSession adia a sessão: o modal fecha e ela vira bolinha no sidebar; não
 // reabre sozinha (só ao clicar a bolinha). Responder/enviar limpa a marca.
 export function deferSession(id: string): Promise<void> {
   return req(`/sessions/${id}/defer`, { method: 'POST' });
+}
+
+// idleSession marca a sessão como ociosa: dispensa a pergunta e ela vira uma
+// bolinha CINZA no sidebar (sem pendência). Reabre o modal só ao clicar.
+export function idleSession(id: string): Promise<void> {
+  return req(`/sessions/${id}/idle`, { method: 'POST' });
 }
 
 // listDeferred devolve a fila de adiadas (mais recentes primeiro).
