@@ -12,6 +12,8 @@
 // sendo a interação raw — esta camada NÃO o substitui, só cobre a Home.
 package agui
 
+import "encoding/json"
+
 // State é o estado macro de interação da sessão.
 type State string
 
@@ -56,14 +58,26 @@ type HistoryLine struct {
 // consome. Espelha os tipos de evento AG-UI (MESSAGE, TOOL_CALL, STATE,
 // INTERRUPT) achatados num retrato pontual (v1 sem streaming).
 type Snapshot struct {
-	SessionID   string        `json:"session_id"`
-	State       State         `json:"state"`
-	Message     string        `json:"message,omitempty"`      // última fala/pergunta do assistant
-	UserMessage string        `json:"user_message,omitempty"` // último pedido do usuário
-	ToolCalls   []ToolCall    `json:"tool_calls,omitempty"`   // tool_use recentes do assistant
-	Progress    []string      `json:"progress,omitempty"`     // resumo narrado por IA (timeline do card)
-	History     []HistoryLine `json:"history,omitempty"`      // transcript completo (visão de conversa)
-	Interrupt   *Interrupt    `json:"interrupt,omitempty"`    // pergunta bloqueante, ou nil
+	SessionID      string          `json:"session_id"`
+	State          State           `json:"state"`
+	Message        string          `json:"message,omitempty"`         // última fala/pergunta do assistant
+	UserMessage    string          `json:"user_message,omitempty"`    // último pedido do usuário (cru)
+	RequestSummary string          `json:"request_summary,omitempty"` // pedido do usuário condensado por IA ("Seu pedido")
+	ToolCalls      []ToolCall      `json:"tool_calls,omitempty"`      // tool_use recentes do assistant
+	Progress       []string        `json:"progress,omitempty"`        // resumo narrado por IA (timeline do card)
+	History        []HistoryLine   `json:"history,omitempty"`         // transcript completo (visão de conversa)
+	Interrupt      *Interrupt      `json:"interrupt,omitempty"`       // pergunta bloqueante, ou nil
+	AskHTML        string          `json:"ask_html,omitempty"`        // HTML rico do que a IA espera (render em iframe sandbox)
+	ResponseWidget *ResponseWidget `json:"response_widget,omitempty"` // controle de resposta dinâmico (experimental)
+}
+
+// ResponseWidget descreve, em JSON livre (sem tipo fixo), COMO pedir o dado ao
+// usuário — um experimento removível. Gerado junto com AskHTML pela engine
+// ask_html. Type é o discriminador do switch no front (ex.: "range", "options");
+// Spec carrega os parâmetros específicos do tipo.
+type ResponseWidget struct {
+	Type string          `json:"type"`
+	Spec json.RawMessage `json:"spec,omitempty"`
 }
 
 // NeedsAttention indica se o ⚠️ do card deve acender.

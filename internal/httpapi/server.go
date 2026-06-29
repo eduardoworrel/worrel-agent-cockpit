@@ -38,16 +38,18 @@ type Deps struct {
 type Server struct {
 	deps      Deps
 	mux       *http.ServeMux
-	progress  *progressCache  // cache do resumo por IA por sessão (canal AG-UI/Home)
-	titles    *progressCache  // cache do título "vivo" das sessões do motor
-	interpret *interpretCache // cache da interpretação de turnos-fala (auto-mode)
+	progress       *progressCache       // cache do resumo por IA por sessão (canal AG-UI/Home)
+	titles         *progressCache       // cache do título "vivo" das sessões do motor
+	interpret      *interpretCache      // cache da interpretação de turnos-fala (auto-mode)
+	requestSummary *requestSummaryCache // cache do "Seu pedido" condensado (bloco do topo)
+	askHTML        *askHTMLCache        // cache do HTML rico + widget do "A IA espera de você"
 
 	reprocMu sync.Mutex      // protege reproc
 	reproc   map[string]bool // engineID em reprocessamento (impede lote concorrente)
 }
 
 func New(deps Deps) *Server {
-	s := &Server{deps: deps, mux: http.NewServeMux(), progress: newProgressCache(), titles: newProgressCache(), interpret: newInterpretCache(), reproc: map[string]bool{}}
+	s := &Server{deps: deps, mux: http.NewServeMux(), progress: newProgressCache(), titles: newProgressCache(), interpret: newInterpretCache(), requestSummary: newRequestSummaryCache(), askHTML: newAskHTMLCache(), reproc: map[string]bool{}}
 	s.routes()
 	return s
 }

@@ -95,6 +95,9 @@ func (s *Server) handleInteraction(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+			// "Seu pedido" condensado + apresentação rica do que a IA espera.
+			s.attachRequestSummary(&snap)
+			s.attachAskHTML(&snap)
 			writeJSON(w, 200, snap)
 			return
 		}
@@ -111,6 +114,8 @@ func (s *Server) handleInteraction(w http.ResponseWriter, r *http.Request) {
 	ended := !s.deps.Wrapper.IsRunning(id)
 	snap := agui.Build(id, ended, events, pending)
 	s.attachProgress(&snap, events)
+	s.attachRequestSummary(&snap)
+	s.attachAskHTML(&snap)
 	writeJSON(w, 200, snap)
 }
 
