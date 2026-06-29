@@ -9,6 +9,23 @@ import (
 	"github.com/eduardoworrel/worrel-agent-cockpit/internal/bus"
 )
 
+// backfillUserMessage preenche snap.UserMessage com o último pedido do usuário
+// derivado do history (role "you") quando o motor não o forneceu — o snapshot do
+// stream-json não traz o user_message do transcript. No-op se já houver um.
+func backfillUserMessage(snap *agui.Snapshot) {
+	if snap.UserMessage != "" {
+		return
+	}
+	for i := len(snap.History) - 1; i >= 0; i-- {
+		if snap.History[i].Role == "you" {
+			if t := strings.TrimSpace(snap.History[i].Text); t != "" {
+				snap.UserMessage = t
+				return
+			}
+		}
+	}
+}
+
 // routesInteraction expõe o canal AG-UI que serve a Home: ler o snapshot de
 // interação de uma sessão, responder uma pergunta bloqueante e injetar um novo
 // prompt quando a sessão está ociosa. O terminal/PTY (/term) é independente.
@@ -95,6 +112,10 @@ func (s *Server) handleInteraction(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+			// O snapshot do motor não preenche UserMessage (vem do stream, não do
+			// transcript). Faz backfill com o último pedido do usuário do history
+			// para o bloco "Seu pedido" (request_summary + fallback cru).
+			backfillUserMessage(&snap)
 			// "Seu pedido" condensado + apresentação rica do que a IA espera.
 			s.attachRequestSummary(&snap)
 			s.attachAskHTML(&snap)
