@@ -1987,6 +1987,13 @@ tr:last-child td { border-bottom: none; }
 /* A pergunta que a IA espera ganha um leve destaque (é o que você precisa responder). */
 .ixp-section-expects { border-left: 3px solid var(--sky); padding-left: 10px; }
 .ixp-section-expects .ixp-section-body { font-weight: 500; }
+/* HTML rico (ask_html) renderizado num iframe ISOLADO (sandbox sem same-origin):
+   estilo livre lá dentro, zero risco de poluir o app. */
+.ixp-ask-html { width: 100%; min-height: 120px; max-height: 360px; border: 0; border-radius: var(--r-md); background: #fff; }
+/* widget de resposta dinâmico (experimental). */
+.ixp-widget { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ixp-widget-range input[type="range"] { flex: 1; }
+.ixp-widget-value { min-width: 2.5em; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 /* "ok" discreto quando a IA não espera nada de você. */
 .ixp-section-ok { margin-bottom: 12px; }
 .ixp-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }

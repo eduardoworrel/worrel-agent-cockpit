@@ -530,15 +530,26 @@ export interface HistoryLine {
   text: string;
 }
 
+// ResponseWidget: controle de resposta dinâmico (experimental) emitido pela
+// engine ask_html. `type` discrimina o switch no front; `spec` carrega os
+// parâmetros do tipo (JSON livre — sem tipo fixo).
+export interface ResponseWidget {
+  type: string;
+  spec?: Record<string, unknown>;
+}
+
 export interface InteractionSnapshot {
   session_id: string;
   state: InteractionState;
-  message?: string;        // última fala/pergunta da IA
-  user_message?: string;   // último pedido do usuário
-  tool_calls?: ToolCall[]; // o que a IA fez
-  progress?: string[];     // resumo narrado por IA (timeline do card)
-  history?: HistoryLine[]; // transcript completo (visão de conversa)
-  interrupt?: Interrupt;   // pergunta bloqueante pendente
+  message?: string;          // última fala/pergunta da IA
+  user_message?: string;     // último pedido do usuário (cru)
+  request_summary?: string;  // pedido condensado por IA ("Seu pedido")
+  tool_calls?: ToolCall[];   // o que a IA fez
+  progress?: string[];       // resumo narrado por IA (timeline do card)
+  history?: HistoryLine[];   // transcript completo (visão de conversa)
+  interrupt?: Interrupt;     // pergunta bloqueante pendente
+  ask_html?: string;         // HTML rico do que a IA espera (iframe sandbox)
+  response_widget?: ResponseWidget; // controle de resposta dinâmico (experimental)
 }
 
 // PermissionMode: como o CC trata permissões. 'auto' = o agente decide (pede só

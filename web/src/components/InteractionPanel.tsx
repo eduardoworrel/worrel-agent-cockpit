@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { respondInteraction, sendPrompt, deferSession, idleSession, killSession } from '../api';
 import type { InteractionSnapshot } from '../api';
 import { useDraft } from '../useDraft';
+import ResponseWidget, { widgetSupported } from './ResponseWidget';
 
 interface Props {
   snapshot: InteractionSnapshot;
@@ -118,11 +119,12 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
           title={t('home.ix.dismissHint')}>✕</button>
       </div>
 
-      {/* Meu último pedido: o que o usuário pediu por último (o harness consegue digerir). */}
-      {snapshot.user_message && (
+      {/* Seu pedido: o pedido condensado por IA (request_summary); enquanto ela
+          não chega, cai no user_message cru (que antes sumia no fluxo). */}
+      {(snapshot.request_summary || snapshot.user_message) && (
         <section className="ixp-section">
           <h4 className="ixp-section-title">{t('home.ix.myRequest')}</h4>
-          <p className="ixp-section-body">{snapshot.user_message}</p>
+          <p className="ixp-section-body">{snapshot.request_summary || snapshot.user_message}</p>
         </section>
       )}
 
@@ -141,9 +143,17 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
       {awaitsYou && expects ? (
         <section className="ixp-section ixp-section-expects">
           <h4 className="ixp-section-title">{t('home.ix.expects')}</h4>
-          <div className="ixp-section-body chat-md">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{expects}</ReactMarkdown>
-          </div>
+          {/* HTML rico (ask_html) num iframe ISOLADO (sandbox sem same-origin);
+              se a IA ainda não gerou o HTML, cai no markdown atual. O HTML nunca
+              bloqueia o input abaixo. */}
+          {snapshot.ask_html ? (
+            <iframe className="ixp-ask-html" sandbox="" title={t('home.ix.expects')}
+              srcDoc={snapshot.ask_html} />
+          ) : (
+            <div className="ixp-section-body chat-md">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{expects}</ReactMarkdown>
+            </div>
+          )}
         </section>
       ) : (
         <section className="ixp-section ixp-section-ok">
@@ -159,6 +169,18 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => permit(true)}>{t('ask.allow')}</button>
             <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => permit(false)}>{t('ask.deny')}</button>
           </div>
+        </>
+      ) : awaitsYou && widgetSupported(snapshot.response_widget) ? (
+        // Widget de resposta dinâmico (experimental): a IA decidiu como pedir o
+        // dado. Só em awaiting livre/choice/text — permissão nunca cai aqui
+        // (isPermission tem prioridade acima). Mantém um form de texto de escape.
+        <>
+          <ResponseWidget widget={snapshot.response_widget!} busy={busy} onSubmit={reply} />
+          <form className="ixp-form" onSubmit={(e) => { e.preventDefault(); if (text.trim()) reply(text.trim()); }}>
+            <input className="ixp-input" value={text} onChange={(e) => setText(e.target.value)}
+              placeholder={t('home.ix.promptPlaceholder')} />
+            <button className="btn btn-primary btn-sm" type="submit" disabled={busy || !text.trim()}>{t('home.ix.send')}</button>
+          </form>
         </>
       ) : interrupt?.kind === 'choice' && interrupt.options?.length ? (
         <>
