@@ -91,6 +91,10 @@ func (s *Server) attachAskHTML(snap *agui.Snapshot) {
 		snap.ResponseWidget = r.Widget
 		return
 	}
+	// Sem HTML para este conteúdo ainda: ou começamos a gerar agora, ou já está em
+	// voo. Em ambos os casos o front mostra "preparando…" em vez do markdown cru —
+	// evita o flash do modelo antigo antes do HTML rico chegar.
+	snap.AskHTMLPending = true
 	if !s.askHTML.claim(id, expects) {
 		return
 	}
@@ -100,21 +104,19 @@ func (s *Server) attachAskHTML(snap *agui.Snapshot) {
 		defer cancel()
 		llm, opts := s.summarizerFor("ask_html", id)
 		out, err := llm.RunHeadless(ctx, prompt, opts)
-		if err != nil {
-			s.askHTML.release(id)
-			return
-		}
-		if s.deps.Store != nil {
+		if err == nil && s.deps.Store != nil {
 			_ = s.deps.Store.LogEngineRun(&store.EngineLogEntry{
 				EngineID: "ask_html", SessionID: id, Trigger: "realtime",
 				Input: prompt, Output: out,
 			})
 		}
-		res := agui.ParseAskHTML(out)
-		if res.HTML == "" {
-			s.askHTML.release(id)
-			return
+		res := agui.AskHTML{}
+		if err == nil {
+			res = agui.ParseAskHTML(out)
 		}
+		// Sucesso OU falha: grava o resultado (HTML vazio em falha) para ESTE
+		// conteúdo. Vazio em cache faz o front cair no markdown e NÃO ficar
+		// retentando (loading eterno); regenera só quando o expects mudar.
 		s.askHTML.store(id, expects, res)
 		s.deps.Bus.Publish(bus.Event{Type: "interaction.changed", Payload: map[string]any{"session_id": id}})
 	}()

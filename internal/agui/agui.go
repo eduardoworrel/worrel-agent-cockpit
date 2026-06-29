@@ -67,8 +67,9 @@ type Snapshot struct {
 	Progress       []string        `json:"progress,omitempty"`        // resumo narrado por IA (timeline do card)
 	History        []HistoryLine   `json:"history,omitempty"`         // transcript completo (visão de conversa)
 	Interrupt      *Interrupt      `json:"interrupt,omitempty"`       // pergunta bloqueante, ou nil
-	AskHTML        string          `json:"ask_html,omitempty"`        // HTML rico do que a IA espera (render em iframe sandbox)
-	ResponseWidget *ResponseWidget `json:"response_widget,omitempty"` // controle de resposta dinâmico (experimental)
+	AskHTML        string          `json:"ask_html,omitempty"`         // HTML rico do que a IA espera (render em iframe sandbox)
+	AskHTMLPending bool            `json:"ask_html_pending,omitempty"` // geração do ask_html em voo → mostrar loading em vez do fallback
+	ResponseWidget *ResponseWidget `json:"response_widget,omitempty"`  // controle de resposta dinâmico (experimental)
 }
 
 // ResponseWidget descreve, em JSON livre (sem tipo fixo), COMO pedir o dado ao

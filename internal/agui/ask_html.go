@@ -15,16 +15,26 @@ const askHTMLContextTail = 8
 // fixado — queremos observar como varia. Determinístico (puro) para ser testável.
 func AskHTMLPrompt(expects string, context []HistoryLine) string {
 	var b strings.Builder
-	b.WriteString("A IA espera uma resposta do usuário. Gere uma apresentação RICA e " +
-		"LEGÍVEL dessa pergunta/decisão para um modal. Responda APENAS em JSON, sem " +
-		"texto extra:\n" +
-		"{\"html\":\"<documento HTML completo, com estilo inline, em português; SEM " +
-		"<script>, SEM recursos externos>\",\"widget\":null|{\"type\":\"range|options|...\"," +
-		"\"spec\":{...}}}\n" +
-		"- html: HTML autossuficiente (será renderizado num iframe isolado). Estilo livre.\n" +
-		"- widget: opcional. Descreva COMO pedir o dado se um controle ajudar (ex.: " +
-		"{\"type\":\"range\",\"spec\":{\"min\":0,\"max\":100}} ou {\"type\":\"options\"," +
-		"\"spec\":{\"options\":[\"a\",\"b\"]}}). Use null se um campo de texto basta.\n" +
+	b.WriteString("A IA espera uma resposta do usuário. Gere uma apresentação RICA, " +
+		"DENSA e CLICÁVEL dessa pergunta/decisão para um modal estreito. Responda " +
+		"APENAS em JSON, sem texto extra:\n" +
+		"{\"html\":\"<documento HTML completo com estilo inline, em português>\"," +
+		"\"widget\":null|{\"type\":\"range|options|...\",\"spec\":{...}}}\n" +
+		"\n## Regras do html (críticas)\n" +
+		"- COMPACTO: aproveite bem o espaço, NÃO desperdice. Padding pequeno (8–12px), " +
+		"sem margens grandes, sem hero gigante. O modal é estreito — pense em densidade, " +
+		"não em pôster.\n" +
+		"- Se há opções de escolha, renderize-as como itens CLICÁVEIS: cada opção é um " +
+		"elemento com o atributo data-choice=\"<texto exato a enviar como resposta>\" e " +
+		"style com cursor:pointer. NÃO repita as opções fora desses elementos. As opções " +
+		"clicáveis SÃO a resposta — não descreva \"clique no botão abaixo\".\n" +
+		"- Layout enxuto: prefira lista vertical compacta ou grid de 2 colunas para as " +
+		"opções; rótulo curto em negrito + 1 linha de exemplo/detalhe no máximo.\n" +
+		"- Estilo livre (cores/tipografia à vontade), mas legível e auto-suficiente: SEM " +
+		"<script>, SEM recursos externos, width 100%. Fundo claro.\n" +
+		"- widget: use null quando as opções já estão clicáveis no html (caso comum). Só " +
+		"preencha para controles que o html não dá conta (ex.: {\"type\":\"range\"," +
+		"\"spec\":{\"min\":0,\"max\":100}}).\n" +
 		"Não invente conteúdo — baseie-se só no que a IA espera e no contexto.\n\n")
 	if len(context) > 0 {
 		tail := context

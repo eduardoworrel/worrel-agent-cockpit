@@ -549,6 +549,7 @@ export interface InteractionSnapshot {
   history?: HistoryLine[];   // transcript completo (visão de conversa)
   interrupt?: Interrupt;     // pergunta bloqueante pendente
   ask_html?: string;         // HTML rico do que a IA espera (iframe sandbox)
+  ask_html_pending?: boolean; // geração do ask_html em voo → mostrar loading
   response_widget?: ResponseWidget; // controle de resposta dinâmico (experimental)
 }
 

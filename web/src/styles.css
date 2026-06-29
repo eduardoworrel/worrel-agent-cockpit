@@ -1964,12 +1964,12 @@ tr:last-child td { border-bottom: none; }
 .responder-overlay { position: fixed; inset: 0; background: rgba(25,21,16,0.28); z-index: 60; display: flex; }
 .responder-overlay.responder-center { align-items: center; justify-content: center; }
 .responder-modal {
-  width: min(440px, 92vw); max-height: 82vh; overflow: auto;
+  width: min(760px, 94vw); max-height: 86vh; overflow: auto;
   background: var(--surface); border: 1px solid var(--line-strong);
   border-radius: var(--r-lg); box-shadow: var(--shadow-lg); animation: nsw-in .18s ease;
 }
 .responder-drawer {
-  margin-left: auto; width: min(420px, 94vw); height: 100%; overflow: auto;
+  margin-left: auto; width: min(560px, 96vw); height: 100%; overflow: auto;
   background: var(--surface); border-left: 1px solid var(--line-strong);
   box-shadow: var(--shadow-lg); animation: drawer-in .2s ease;
 }
@@ -1989,7 +1989,15 @@ tr:last-child td { border-bottom: none; }
 .ixp-section-expects .ixp-section-body { font-weight: 500; }
 /* HTML rico (ask_html) renderizado num iframe ISOLADO (sandbox sem same-origin):
    estilo livre lá dentro, zero risco de poluir o app. */
-.ixp-ask-html { width: 100%; min-height: 120px; max-height: 360px; border: 0; border-radius: var(--r-md); background: #fff; }
+.ixp-ask-html { width: 100%; min-height: 80px; border: 0; border-radius: var(--r-md); background: #fff; display: block; }
+/* loading enquanto o HTML rico (ask_html) é gerado — evita o flash do markdown cru. */
+.ixp-ask-loading { display: flex; align-items: center; gap: 8px; min-height: 80px;
+  padding: 12px; border-radius: var(--r-md); background: var(--surface-sunk);
+  color: var(--muted); font-size: 0.85rem; }
+.ixp-spinner { width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 2px solid var(--line-strong); border-top-color: var(--ink-soft);
+  animation: ixp-spin .7s linear infinite; }
+@keyframes ixp-spin { to { transform: rotate(360deg); } }
 /* widget de resposta dinâmico (experimental). */
 .ixp-widget { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ixp-widget-range input[type="range"] { flex: 1; }

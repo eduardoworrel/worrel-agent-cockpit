@@ -6,6 +6,7 @@ import { respondInteraction, sendPrompt, deferSession, idleSession, killSession 
 import type { InteractionSnapshot } from '../api';
 import { useDraft } from '../useDraft';
 import ResponseWidget, { widgetSupported } from './ResponseWidget';
+import AskHtmlFrame from './AskHtmlFrame';
 
 interface Props {
   snapshot: InteractionSnapshot;
@@ -147,8 +148,14 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
               se a IA ainda não gerou o HTML, cai no markdown atual. O HTML nunca
               bloqueia o input abaixo. */}
           {snapshot.ask_html ? (
-            <iframe className="ixp-ask-html" sandbox="" title={t('home.ix.expects')}
-              srcDoc={snapshot.ask_html} />
+            <AskHtmlFrame html={snapshot.ask_html} onChoice={reply} />
+          ) : snapshot.ask_html_pending ? (
+            // Gerando o HTML rico: mostra um loading em vez de "piscar" o markdown
+            // cru antes da versão condensada chegar.
+            <div className="ixp-ask-loading">
+              <span className="ixp-spinner" aria-hidden="true" />
+              {t('home.ix.preparing', 'Preparando a visualização…')}
+            </div>
           ) : (
             <div className="ixp-section-body chat-md">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{expects}</ReactMarkdown>
@@ -170,10 +177,23 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
             <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => permit(false)}>{t('ask.deny')}</button>
           </div>
         </>
+      ) : awaitsYou && snapshot.ask_html ? (
+        // HTML rico cuida da apresentação E das choices clicáveis (sem botões
+        // duplicados). Só o slider (range) não cabe como clicável no HTML → cai no
+        // widget. Abaixo, um campo livre de escape para responder fora das opções.
+        <>
+          {snapshot.response_widget?.type === 'range' && widgetSupported(snapshot.response_widget) && (
+            <ResponseWidget widget={snapshot.response_widget} busy={busy} onSubmit={reply} />
+          )}
+          <form className="ixp-form" onSubmit={(e) => { e.preventDefault(); if (text.trim()) reply(text.trim()); }}>
+            <input className="ixp-input" value={text} onChange={(e) => setText(e.target.value)}
+              placeholder={t('home.ix.promptPlaceholder')} />
+            <button className="btn btn-primary btn-sm" type="submit" disabled={busy || !text.trim()}>{t('home.ix.send')}</button>
+          </form>
+        </>
       ) : awaitsYou && widgetSupported(snapshot.response_widget) ? (
-        // Widget de resposta dinâmico (experimental): a IA decidiu como pedir o
-        // dado. Só em awaiting livre/choice/text — permissão nunca cai aqui
-        // (isPermission tem prioridade acima). Mantém um form de texto de escape.
+        // Fallback SEM ask_html: o widget dinâmico (experimental) renderiza o
+        // controle. Mantém um form de texto de escape.
         <>
           <ResponseWidget widget={snapshot.response_widget!} busy={busy} onSubmit={reply} />
           <form className="ixp-form" onSubmit={(e) => { e.preventDefault(); if (text.trim()) reply(text.trim()); }}>
