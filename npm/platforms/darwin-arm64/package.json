@@ -1,6 +1,6 @@
 {
   "name": "@worrel/darwin-arm64",
-  "version": "0.5.12",
+  "version": "0.6.0",
   "description": "Binário do Worrel para macOS arm64.",
   "os": [
     "darwin"

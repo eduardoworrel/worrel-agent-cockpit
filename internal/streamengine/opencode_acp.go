@@ -189,8 +189,12 @@ func (s *acpSession) Close() {
 func (s *acpSession) Respond(allow bool) error {
 	s.mu.Lock()
 	if s.permID == 0 {
+		// Nada pendente: idempotente (ver streamengine.Session.Respond). Limpa o
+		// interrupt e sai sem 409 — senão o botão "não dispara nada" na UI.
+		s.interrupt = nil
 		s.mu.Unlock()
-		return fmt.Errorf("nenhuma permissão pendente")
+		s.notify()
+		return nil
 	}
 	id := s.permID
 	opts := s.permOpts

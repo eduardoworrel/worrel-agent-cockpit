@@ -54,7 +54,10 @@ export default function SessionStream() {
   async function act(fn: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
-    try { await fn(); load(); } catch { /* noop */ } finally { setBusy(false); }
+    // Recarrega SEMPRE (sucesso ou erro): se o interrupt já estava resolvido/órfão
+    // o respond volta 409 — sem refetch os botões velhos ficariam presos na tela e
+    // todo clique daria outro 409 silencioso ("aparecem mas não disparam").
+    try { await fn(); } catch { /* já resolvido/encerrado */ } finally { load(); setBusy(false); }
   }
 
   function submit() {

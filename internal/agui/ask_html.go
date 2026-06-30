@@ -10,17 +10,21 @@ import (
 const askHTMLContextTail = 8
 
 // AskHTMLPrompt monta o prompt que pede ao LLM uma apresentação RICA do que a IA
-// espera do usuário: um documento HTML completo (estilo inline, SEM <script>) e,
-// opcionalmente, um widget de resposta dinâmico. O estilo é deliberadamente NÃO
-// fixado — queremos observar como varia. Determinístico (puro) para ser testável.
+// espera do usuário: um FRAGMENTO HTML (um único <div> com estilo inline, SEM
+// <html>/<body>/<script>) e, opcionalmente, um widget de resposta dinâmico. Pedir
+// fragmento — e não um documento completo — encurta a saída e acelera a geração.
+// O estilo é deliberadamente NÃO fixado. Determinístico (puro) para ser testável.
 func AskHTMLPrompt(expects string, context []HistoryLine) string {
 	var b strings.Builder
 	b.WriteString("A IA espera uma resposta do usuário. Gere uma apresentação RICA, " +
 		"DENSA e CLICÁVEL dessa pergunta/decisão para um modal estreito. Responda " +
 		"APENAS em JSON, sem texto extra:\n" +
-		"{\"html\":\"<documento HTML completo com estilo inline, em português>\"," +
+		"{\"html\":\"<um único <div> com estilo inline, em português — FRAGMENTO, " +
+		"sem <html>/<head>/<body>/<style>>\"," +
 		"\"widget\":null|{\"type\":\"range|options|...\",\"spec\":{...}}}\n" +
 		"\n## Regras do html (críticas)\n" +
+		"- FRAGMENTO ENXUTO: devolva só o conteúdo (um <div> raiz), nada de boilerplate " +
+		"de documento. Quanto mais curto, mais rápido — vá direto ao ponto.\n" +
 		"- COMPACTO: aproveite bem o espaço, NÃO desperdice. Padding pequeno (8–12px), " +
 		"sem margens grandes, sem hero gigante. O modal é estreito — pense em densidade, " +
 		"não em pôster.\n" +

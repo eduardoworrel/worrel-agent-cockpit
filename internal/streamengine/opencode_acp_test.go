@@ -161,12 +161,14 @@ func captureACPWrite(s *acpSession) *acpWriteCapture {
 	return c
 }
 
-func TestACPRespondNoPendingErrors(t *testing.T) {
+func TestACPRespondNoPendingIsIdempotent(t *testing.T) {
 	s := newTestACP()
 	s.pending = map[int]chan map[string]any{}
 	before := s.Snapshot().State
-	if err := s.Respond(true); err == nil {
-		t.Fatal("Respond sem permissão pendente deveria retornar erro")
+	// Sem permissão pendente, Respond é IDEMPOTENTE: não erra (senão o botão da UI
+	// "não dispara nada" e fica em loop de 409) e não muda o estado.
+	if err := s.Respond(true); err != nil {
+		t.Fatalf("Respond sem permissão pendente deveria ser no-op, não erro: %v", err)
 	}
 	if s.Snapshot().State != before {
 		t.Fatalf("State não deveria mudar quando não há permissão pendente: %q -> %q", before, s.Snapshot().State)

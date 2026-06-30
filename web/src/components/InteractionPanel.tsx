@@ -53,7 +53,10 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
   async function act(fn: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
-    try { await fn(); clearDraft(); onActed(); onClose(); } catch { /* já resolvido/encerrado */ }
+    // Em erro (ex.: 409 de interrupt já resolvido/órfão) ainda refazemos onActed
+    // para sincronizar o snapshot — senão os botões velhos ficam presos e nenhum
+    // clique surte efeito. Só fechamos o modal no caminho de sucesso.
+    try { await fn(); clearDraft(); onActed(); onClose(); } catch { onActed(); }
     finally { setBusy(false); }
   }
 
@@ -147,9 +150,9 @@ export default function InteractionPanel({ snapshot, onActed, onClose, onOpenCha
           {/* HTML rico (ask_html) num iframe ISOLADO (sandbox sem same-origin);
               se a IA ainda não gerou o HTML, cai no markdown atual. O HTML nunca
               bloqueia o input abaixo. */}
-          {snapshot.ask_html ? (
+          {!isPermission && snapshot.ask_html ? (
             <AskHtmlFrame html={snapshot.ask_html} onChoice={reply} />
-          ) : snapshot.ask_html_pending ? (
+          ) : !isPermission && snapshot.ask_html_pending ? (
             // Gerando o HTML rico: mostra um loading em vez de "piscar" o markdown
             // cru antes da versão condensada chegar.
             <div className="ixp-ask-loading">

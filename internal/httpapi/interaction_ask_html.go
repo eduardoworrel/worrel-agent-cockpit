@@ -78,6 +78,14 @@ func (s *Server) attachAskHTML(snap *agui.Snapshot) {
 	if s.deps.Summarizer == nil || !snap.NeedsAttention() {
 		return
 	}
+	// Permissões (can_use_tool) NÃO ganham HTML rico: respondem-se por allow/deny
+	// pelo control protocol — choices clicáveis mandariam um prompt de texto e
+	// deixariam a tool pendente (tela travada). Além disso a permissão surge no
+	// MEIO do turno, a cada ferramenta — gerar aqui é o "sem parar". O HTML rico
+	// fica para o fim de turno e perguntas ask_user (choice/text).
+	if snap.Interrupt != nil && snap.Interrupt.Kind == agui.KindPermission {
+		return
+	}
 	expects := expectsOf(snap)
 	if expects == "" {
 		return

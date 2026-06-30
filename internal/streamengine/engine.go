@@ -16,7 +16,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -155,6 +154,16 @@ func (s *Session) SendPrompt(text string) error {
 func (s *Session) Respond(allow bool) error {
 	s.mu.Lock()
 	reqID := s.reqID
+	if reqID == nil {
+		// Nada pendente (já resolvido em outra aba, órfão, ou snapshot defasado):
+		// responder a nada é IDEMPOTENTE, não erro. Garante o interrupt limpo e sai
+		// — sem 409 e sem linha de histórico falsa. O front re-sincroniza e os botões
+		// somem (antes virava 409 e o clique "não disparava nada").
+		s.interrupt = nil
+		s.mu.Unlock()
+		s.notify()
+		return nil
+	}
 	pendingIn := s.pendingIn
 	tool := s.pendingTool
 	s.interrupt = nil
@@ -170,9 +179,6 @@ func (s *Session) Respond(allow bool) error {
 	s.history = append(s.history, sysLine)
 	s.mu.Unlock()
 	s.persistLines(sysLine)
-	if reqID == nil {
-		return fmt.Errorf("nenhuma permissão pendente")
-	}
 	// allow EXIGE updatedInput (o input original, possivelmente ajustado); deny
 	// leva uma mensagem. Espelha o protocolo do CLI (control_response).
 	var inner map[string]any
